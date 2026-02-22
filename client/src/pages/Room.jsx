@@ -8,7 +8,7 @@ import NotificationBell from '../components/NotificationBell';
 
 function Room() {
   const { id: roomId } = useParams();
-  const { user, login } = useUser();
+  const { user, login, theme, toggleTheme } = useUser();
   const navigate = useNavigate();
 
   const [room, setRoom] = useState(null);
@@ -334,6 +334,9 @@ function Room() {
               {room?.is_locked ? '🔓 Unlock' : '🔒 Lock'}
             </button>
           )}
+          <button className="btn-icon" onClick={toggleTheme} title="Toggle theme">
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
           <NotificationBell
             notifications={notifications}
             onMarkAllRead={markAllNotificationsRead}

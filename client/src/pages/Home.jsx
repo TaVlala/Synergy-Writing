@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../App';
 
 function Home() {
-  const { user, login, logout } = useUser();
+  const { user, login, logout, theme, toggleTheme } = useUser();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
@@ -55,9 +55,12 @@ function Home() {
   if (!user) {
     return (
       <div className="home-container">
+        <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
         <div className="home-hero">
-          <div className="home-logo">✍️</div>
-          <h1 className="home-title">Collab Write</h1>
+          <div className="home-logo">S</div>
+          <h1 className="home-title">SynergY</h1>
           <p className="home-subtitle">Create a room, share the link, write together.</p>
           <form className="name-form" onSubmit={handleSetName}>
             <input
@@ -81,9 +84,12 @@ function Home() {
 
   return (
     <div className="home-container">
+      <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+        {theme === 'light' ? '🌙' : '☀️'}
+      </button>
       <div className="home-hero">
-        <div className="home-logo">✍️</div>
-        <h1 className="home-title">Collab Write</h1>
+        <div className="home-logo">S</div>
+        <h1 className="home-title">SynergY</h1>
         <p className="home-subtitle">
           Hello, <strong>{user.name}</strong>
         </p>
