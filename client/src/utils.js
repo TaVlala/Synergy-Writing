@@ -4,6 +4,11 @@ const AUTHOR_COLORS = [
   '#ec4899', '#84cc16'
 ];
 
+export const USER_COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#6366f1', '#a855f7', '#ec4899'
+];
+
 export function getAuthorColor(authorId) {
   if (!authorId) return AUTHOR_COLORS[0];
   let hash = 0;

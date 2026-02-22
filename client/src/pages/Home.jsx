@@ -1,11 +1,30 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../App';
+import { USER_COLORS } from '../utils';
+
+function ColorPicker({ selected, onChange }) {
+  return (
+    <div className="color-picker">
+      {USER_COLORS.map(c => (
+        <button
+          key={c}
+          type="button"
+          className={`color-swatch${selected === c ? ' color-swatch--active' : ''}`}
+          style={{ background: c }}
+          onClick={() => onChange(c)}
+          title={c}
+        />
+      ))}
+    </div>
+  );
+}
 
 function Home() {
   const { user, login, logout, theme, toggleTheme } = useUser();
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [selectedColor, setSelectedColor] = useState(USER_COLORS[5]); // indigo default
   const [title, setTitle] = useState('');
   const [joinId, setJoinId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,11 +36,20 @@ function Home() {
     setLoading(true);
     setError('');
     try {
-      await login(name.trim());
+      await login(name.trim(), undefined, selectedColor);
     } catch {
       setError('Failed to set name. Please try again.');
     }
     setLoading(false);
+  };
+
+  const handleColorChange = async (color) => {
+    if (!user) return;
+    try {
+      await login(user.name, user.id, color);
+    } catch {
+      // silently fail — color update is non-critical
+    }
   };
 
   const handleCreate = async (e) => {
@@ -72,6 +100,10 @@ function Home() {
               maxLength={50}
               autoFocus
             />
+            <div className="color-picker-row">
+              <span className="color-picker-label">Pick your color</span>
+              <ColorPicker selected={selectedColor} onChange={setSelectedColor} />
+            </div>
             <button className="btn btn-primary" type="submit" disabled={loading || !name.trim()}>
               {loading ? 'Setting up…' : 'Continue →'}
             </button>
@@ -91,8 +123,12 @@ function Home() {
         <div className="home-logo">S</div>
         <h1 className="home-title">SynergY</h1>
         <p className="home-subtitle">
-          Hello, <strong>{user.name}</strong>
+          Hello, <strong style={{ color: user.color }}>{user.name}</strong>
         </p>
+        <div className="color-picker-row">
+          <span className="color-picker-label">Your color</span>
+          <ColorPicker selected={user.color} onChange={handleColorChange} />
+        </div>
 
         <div className="home-actions">
           <div className="action-card">

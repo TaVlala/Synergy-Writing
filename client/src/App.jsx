@@ -28,7 +28,7 @@ function App() {
       fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: parsed.id, name: parsed.name })
+        body: JSON.stringify({ id: parsed.id, name: parsed.name, color: parsed.color })
       })
         .then(r => r.json())
         .then(u => {
@@ -42,11 +42,11 @@ function App() {
     }
   }, []);
 
-  const login = async (name, existingId) => {
+  const login = async (name, existingId, color) => {
     const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, id: existingId })
+      body: JSON.stringify({ name, id: existingId, color })
     });
     const u = await res.json();
     setUser(u);

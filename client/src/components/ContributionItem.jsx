@@ -4,15 +4,53 @@ import { getAuthorColor, formatTime } from '../utils';
 
 const REACTIONS = ['👍', '❤️', '😄', '🔥', '✨'];
 
-function ContributionItem({ contribution, currentUser, isCreator, onDelete, onReact, onAddComment, onLoadComments }) {
+function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEdit, onReact, onAddComment, onLoadComments }) {
   const [showComments, setShowComments] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(contribution.content);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
   const pickerRef = useRef(null);
+  const editRef = useRef(null);
 
-  const authorColor = getAuthorColor(contribution.author_id);
+  const authorColor = contribution.author_color || getAuthorColor(contribution.author_id);
   const isOwn = contribution.author_id === currentUser?.id;
   const canDelete = isOwn || isCreator;
+  const canEdit = isOwn;
+
+  const handleEditStart = () => {
+    setEditText(contribution.content);
+    setEditError('');
+    setEditing(true);
+    setTimeout(() => {
+      editRef.current?.focus();
+      const len = editRef.current?.value.length;
+      editRef.current?.setSelectionRange(len, len);
+    }, 0);
+  };
+
+  const handleEditCancel = () => {
+    setEditing(false);
+    setEditError('');
+  };
+
+  const handleEditSave = async () => {
+    if (!editText.trim() || editText.trim() === contribution.content) {
+      setEditing(false);
+      return;
+    }
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await onEdit(contribution.id, editText.trim());
+      setEditing(false);
+    } catch (err) {
+      setEditError(err.message);
+    }
+    setEditSaving(false);
+  };
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -48,7 +86,10 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onRe
   const commentCount = contribution.comments?.length ?? 0;
 
   return (
-    <article className={`contribution ${isOwn ? 'contribution--own' : ''}`}>
+    <article
+      className={`contribution ${isOwn ? 'contribution--own' : ''}`}
+      style={{ borderLeftColor: authorColor, borderLeftWidth: '4px' }}
+    >
       {/* Header */}
       <div className="contribution-header">
         <span
@@ -61,8 +102,20 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onRe
         <span className="author-name">{contribution.author_name}</span>
         <time className="contribution-time" dateTime={new Date(contribution.created_at).toISOString()}>
           {formatTime(contribution.created_at)}
+          {contribution.edited_at && <span className="edited-label"> (edited)</span>}
         </time>
-        {canDelete && (
+        {contribution.status === 'pending' && (
+          <span className="contrib-status-badge contrib-status-badge--pending">Pending</span>
+        )}
+        {contribution.status === 'rejected' && (
+          <span className="contrib-status-badge contrib-status-badge--rejected">Rejected</span>
+        )}
+        {canEdit && !editing && (
+          <button className="edit-btn" onClick={handleEditStart} title="Edit contribution">
+            ✎
+          </button>
+        )}
+        {canDelete && !editing && (
           <button
             className="delete-btn"
             onClick={() => onDelete(contribution.id)}
@@ -75,7 +128,32 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onRe
 
       {/* Content */}
       <div className="contribution-body">
-        <p>{contribution.content}</p>
+        {editing ? (
+          <div className="edit-form">
+            <textarea
+              ref={editRef}
+              className="edit-textarea"
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleEditSave();
+                if (e.key === 'Escape') handleEditCancel();
+              }}
+              rows={Math.max(3, editText.split('\n').length)}
+            />
+            {editError && <p className="edit-error">{editError}</p>}
+            <div className="edit-actions">
+              <button className="btn btn-secondary" onClick={handleEditCancel} disabled={editSaving}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleEditSave} disabled={editSaving || !editText.trim()}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p>{contribution.content}</p>
+        )}
       </div>
 
       {/* Footer: reactions + comment toggle */}

@@ -16,7 +16,9 @@ const EMPTY = {
   contributions: [],
   comments: [],
   reactions: [],
-  notifications: []
+  notifications: [],
+  chat_messages: [],
+  room_members: []
 };
 
 let store;

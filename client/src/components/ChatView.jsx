@@ -1,7 +1,7 @@
 import React from 'react';
 import ContributionItem from './ContributionItem';
 
-function ChatView({ contributions, currentUser, isCreator, onDelete, onReact, onAddComment, onLoadComments }) {
+function ChatView({ contributions, currentUser, isCreator, onDelete, onEdit, onReact, onAddComment, onLoadComments }) {
   if (contributions.length === 0) {
     return (
       <div className="empty-state">
@@ -21,6 +21,7 @@ function ChatView({ contributions, currentUser, isCreator, onDelete, onReact, on
           currentUser={currentUser}
           isCreator={isCreator}
           onDelete={onDelete}
+          onEdit={onEdit}
           onReact={onReact}
           onAddComment={onAddComment}
           onLoadComments={onLoadComments}

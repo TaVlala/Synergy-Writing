@@ -33,7 +33,7 @@ function createNotification(userId, roomId, type, message) {
 // ============ USERS ============
 
 app.post('/api/users', (req, res) => {
-  const { name, id } = req.body;
+  const { name, id, color } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
   const trimmedName = name.trim();
@@ -42,12 +42,13 @@ app.post('/api/users', (req, res) => {
     const idx = store.users.findIndex(u => u.id === id);
     if (idx !== -1) {
       store.users[idx].name = trimmedName;
+      if (color) store.users[idx].color = color;
       save();
       return res.json(store.users[idx]);
     }
   }
 
-  const user = { id: id || uuidv4(), name: trimmedName, created_at: now() };
+  const user = { id: id || uuidv4(), name: trimmedName, color: color || '#6366f1', created_at: now() };
   store.users.push(user);
   save();
   res.json(user);
@@ -78,15 +79,95 @@ app.get('/api/rooms/:id', (req, res) => {
 });
 
 app.patch('/api/rooms/:id', (req, res) => {
-  const { is_locked, user_id } = req.body;
+  const { is_locked, is_entry_locked, user_id } = req.body;
   const room = store.rooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.creator_id !== user_id) return res.status(403).json({ error: 'Only the room creator can do this' });
 
   if (is_locked !== undefined) room.is_locked = is_locked ? 1 : 0;
+  if (is_entry_locked !== undefined) room.is_entry_locked = is_entry_locked ? 1 : 0;
   save();
   io.to(req.params.id).emit('room_updated', room);
   res.json(room);
+});
+
+// ============ ROOM MEMBERS ============
+
+// Join a room — register/update membership, enforce entry lock
+app.post('/api/rooms/:id/join', (req, res) => {
+  const { user_id, user_name, user_color } = req.body;
+  if (!user_id || !user_name) return res.status(400).json({ error: 'user_id and user_name required' });
+
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  const existing = store.room_members.find(m => m.room_id === req.params.id && m.user_id === user_id);
+
+  if (existing?.removed_at) {
+    return res.status(403).json({ error: 'You have been removed from this room', reason: 'removed' });
+  }
+
+  if (room.is_entry_locked && !existing) {
+    return res.status(403).json({ error: 'This room is closed to new members', reason: 'entry_locked' });
+  }
+
+  if (existing) {
+    existing.user_name = user_name;
+    if (user_color) existing.user_color = user_color;
+    existing.last_seen = now();
+    save();
+    return res.json(existing);
+  }
+
+  const member = {
+    id: uuidv4(),
+    room_id: req.params.id,
+    user_id,
+    user_name,
+    user_color: user_color || '#6366f1',
+    joined_at: now(),
+    last_seen: now(),
+    removed_at: null,
+    removed_by: null
+  };
+  store.room_members.push(member);
+  save();
+
+  io.to(req.params.id).emit('member_joined', { user_id, user_name, user_color: member.user_color });
+  res.json(member);
+});
+
+// List all members of a room (with contribution counts)
+app.get('/api/rooms/:id/members', (req, res) => {
+  const members = store.room_members
+    .filter(m => m.room_id === req.params.id)
+    .map(m => ({
+      ...m,
+      contribution_count: store.contributions.filter(
+        c => c.room_id === req.params.id && c.author_id === m.user_id
+      ).length
+    }))
+    .sort((a, b) => a.joined_at - b.joined_at);
+  res.json(members);
+});
+
+// Remove (kick) a member — admin only
+app.delete('/api/rooms/:id/members/:userId', (req, res) => {
+  const { user_id } = req.body;
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.creator_id !== user_id) return res.status(403).json({ error: 'Only the room creator can remove members' });
+
+  const member = store.room_members.find(m => m.room_id === req.params.id && m.user_id === req.params.userId);
+  if (!member) return res.status(404).json({ error: 'Member not found' });
+  if (member.removed_at) return res.status(400).json({ error: 'Already removed' });
+
+  member.removed_at = now();
+  member.removed_by = user_id;
+  save();
+
+  io.to(req.params.id).emit('member_removed', { user_id: req.params.userId });
+  res.json(member);
 });
 
 // ============ CONTRIBUTIONS ============
@@ -97,6 +178,9 @@ app.get('/api/rooms/:id/contributions', (req, res) => {
     .sort((a, b) => a.created_at - b.created_at)
     .map(c => ({
       ...c,
+      // Backwards-compat: old contributions without status are treated as approved
+      status: c.status || 'approved',
+      sort_order: c.sort_order ?? c.created_at,
       reactions: store.reactions.filter(r => r.contribution_id === c.id)
     }));
   res.json(contribs);
@@ -107,9 +191,15 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.is_locked) return res.status(403).json({ error: 'This room is locked' });
 
-  const { author_id, author_name, content, parent_id } = req.body;
+  const { author_id, author_name, author_color, content, parent_id } = req.body;
   if (!content?.trim() || !author_id || !author_name) {
     return res.status(400).json({ error: 'author_id, author_name, and content are required' });
+  }
+
+  // Check if author has been removed from this room
+  const membership = store.room_members.find(m => m.room_id === req.params.id && m.user_id === author_id);
+  if (membership?.removed_at) {
+    return res.status(403).json({ error: 'You have been removed from this room' });
   }
 
   const contribution = {
@@ -117,8 +207,11 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
     room_id: req.params.id,
     author_id,
     author_name,
+    author_color: author_color || '#6366f1',
     content: content.trim(),
     parent_id: parent_id || null,
+    status: 'pending',
+    sort_order: null,
     created_at: now(),
     reactions: []
   };
@@ -148,6 +241,26 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
   res.json(contribution);
 });
 
+app.patch('/api/contributions/:id', (req, res) => {
+  const { user_id, content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Content is required' });
+
+  const idx = store.contributions.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+  const contribution = store.contributions[idx];
+  if (contribution.author_id !== user_id) {
+    return res.status(403).json({ error: 'Only the author can edit this' });
+  }
+
+  contribution.content = content.trim();
+  contribution.edited_at = now();
+  save();
+
+  io.to(contribution.room_id).emit('contribution_updated', contribution);
+  res.json(contribution);
+});
+
 app.delete('/api/contributions/:id', (req, res) => {
   const { user_id } = req.body;
   const idx = store.contributions.findIndex(c => c.id === req.params.id);
@@ -167,6 +280,70 @@ app.delete('/api/contributions/:id', (req, res) => {
 
   io.to(contribution.room_id).emit('contribution_deleted', { id: req.params.id });
   res.json({ success: true });
+});
+
+// Approve or reject a contribution (room creator only)
+app.patch('/api/contributions/:id/status', (req, res) => {
+  const { user_id, status } = req.body;
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'status must be "approved" or "rejected"' });
+  }
+
+  const idx = store.contributions.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+  const contribution = store.contributions[idx];
+  const room = store.rooms.find(r => r.id === contribution.room_id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.creator_id !== user_id) {
+    return res.status(403).json({ error: 'Only the room creator can approve or reject contributions' });
+  }
+
+  contribution.status = status;
+
+  if (status === 'approved') {
+    // Assign sort_order = max existing approved sort_order + 10
+    const approved = store.contributions.filter(c =>
+      c.room_id === contribution.room_id && c.status === 'approved' && c.sort_order != null
+    );
+    const maxOrder = approved.length > 0 ? Math.max(...approved.map(c => c.sort_order)) : 0;
+    contribution.sort_order = maxOrder + 10;
+  }
+
+  save();
+
+  const updated = {
+    ...contribution,
+    reactions: store.reactions.filter(r => r.contribution_id === contribution.id)
+  };
+
+  io.to(contribution.room_id).emit('contribution_status_changed', updated);
+  res.json(updated);
+});
+
+// Reorder approved contributions (room creator only)
+app.patch('/api/rooms/:id/reorder', (req, res) => {
+  const { user_id, order } = req.body;
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of ids' });
+
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.creator_id !== user_id) {
+    return res.status(403).json({ error: 'Only the room creator can reorder contributions' });
+  }
+
+  const updates = [];
+  order.forEach((id, idx) => {
+    const c = store.contributions.find(c => c.id === id && c.room_id === req.params.id);
+    if (c) {
+      c.sort_order = (idx + 1) * 10;
+      updates.push({ id, sort_order: c.sort_order });
+    }
+  });
+
+  save();
+  io.to(req.params.id).emit('contributions_reordered', updates);
+  res.json({ success: true, updates });
 });
 
 // ============ COMMENTS ============
@@ -240,6 +417,41 @@ app.post('/api/contributions/:id/reactions', (req, res) => {
   const reactions = store.reactions.filter(r => r.contribution_id === req.params.id);
   io.to(contribution.room_id).emit('reactions_updated', { contribution_id: req.params.id, reactions });
   res.json(reactions);
+});
+
+// ============ CHAT ============
+
+app.get('/api/rooms/:id/chat', (req, res) => {
+  const messages = store.chat_messages
+    .filter(m => m.room_id === req.params.id)
+    .sort((a, b) => a.created_at - b.created_at)
+    .slice(-100);
+  res.json(messages);
+});
+
+app.post('/api/rooms/:id/chat', (req, res) => {
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  const { author_id, author_name, author_color, content } = req.body;
+  if (!content?.trim() || !author_id || !author_name) {
+    return res.status(400).json({ error: 'author_id, author_name, and content are required' });
+  }
+
+  const message = {
+    id: uuidv4(),
+    room_id: req.params.id,
+    author_id,
+    author_name,
+    author_color: author_color || '#6366f1',
+    content: content.trim(),
+    created_at: now()
+  };
+  store.chat_messages.push(message);
+  save();
+
+  io.to(req.params.id).emit('new_chat_message', message);
+  res.json(message);
 });
 
 // ============ NOTIFICATIONS ============

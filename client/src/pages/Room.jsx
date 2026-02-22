@@ -4,7 +4,11 @@ import { io } from 'socket.io-client';
 import { useUser } from '../App';
 import ChatView from '../components/ChatView';
 import DocumentView from '../components/DocumentView';
+import ReviewView from '../components/ReviewView';
+import ChatSidebar from '../components/ChatSidebar';
+import ContributorsPanel from '../components/ContributorsPanel';
 import NotificationBell from '../components/NotificationBell';
+import { USER_COLORS } from '../utils';
 
 function Room() {
   const { id: roomId } = useParams();
@@ -13,7 +17,8 @@ function Room() {
 
   const [room, setRoom] = useState(null);
   const [contributions, setContributions] = useState([]);
-  const [view, setView] = useState('chat');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [view, setView] = useState('collab');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newText, setNewText] = useState('');
@@ -21,11 +26,18 @@ function Room() {
   const [notifications, setNotifications] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [nameInput, setNameInput] = useState('');
+  const [joinColor, setJoinColor] = useState(USER_COLORS[5]);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [members, setMembers] = useState([]);
+  const [showContributors, setShowContributors] = useState(false);
+  const [membershipStatus, setMembershipStatus] = useState(null); // null | 'removed' | 'entry_locked'
 
   const socketRef = useRef(null);
   const typingTimerRef = useRef({});
   const bottomRef = useRef(null);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // Socket.io setup
   useEffect(() => {
@@ -58,6 +70,42 @@ function Room() {
       );
     });
 
+    socket.on('contribution_updated', (updated) => {
+      setContributions(prev =>
+        prev.map(c => c.id === updated.id ? { ...c, content: updated.content, edited_at: updated.edited_at } : c)
+      );
+    });
+
+    socket.on('contribution_status_changed', (updated) => {
+      setContributions(prev =>
+        prev.map(c => c.id === updated.id ? { ...c, status: updated.status, sort_order: updated.sort_order } : c)
+      );
+    });
+
+    socket.on('contributions_reordered', (updates) => {
+      setContributions(prev => {
+        const orderMap = Object.fromEntries(updates.map(u => [u.id, u.sort_order]));
+        return prev.map(c => orderMap[c.id] !== undefined ? { ...c, sort_order: orderMap[c.id] } : c);
+      });
+    });
+
+    socket.on('member_joined', (member) => {
+      setMembers(prev => {
+        if (prev.find(m => m.user_id === member.user_id)) return prev;
+        return [...prev, { ...member, contribution_count: 0, joined_at: Date.now() }];
+      });
+    });
+
+    socket.on('member_removed', ({ user_id: removedId }) => {
+      setMembers(prev => prev.map(m =>
+        m.user_id === removedId ? { ...m, removed_at: Date.now() } : m
+      ));
+      // Check against the current user — use a ref so we don't capture stale user
+      if (userRef.current?.id === removedId) {
+        setMembershipStatus('removed');
+      }
+    });
+
     socket.on('new_comment', ({ contribution_id, comment }) => {
       setContributions(prev =>
         prev.map(c =>
@@ -66,6 +114,13 @@ function Room() {
             : c
         )
       );
+    });
+
+    socket.on('new_chat_message', (message) => {
+      setChatMessages(prev => {
+        if (prev.find(m => m.id === message.id)) return prev;
+        return [...prev, message];
+      });
     });
 
     socket.on('notification', (notif) => {
@@ -93,7 +148,7 @@ function Room() {
     }
   }, [user]);
 
-  // Load room and contributions
+  // Load room, contributions, and chat history
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -101,15 +156,44 @@ function Room() {
         if (!r.ok) throw new Error('Room not found');
         return r.json();
       }),
-      fetch(`/api/rooms/${roomId}/contributions`).then(r => r.json())
+      fetch(`/api/rooms/${roomId}/contributions`).then(r => r.json()),
+      fetch(`/api/rooms/${roomId}/chat`).then(r => r.json())
     ])
-      .then(([roomData, contribData]) => {
+      .then(([roomData, contribData, chatData]) => {
         setRoom(roomData);
         setContributions(contribData);
+        setChatMessages(chatData);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [roomId]);
+
+  // Join room + load members once both user and room data are available
+  useEffect(() => {
+    if (!user || !roomId) return;
+    const joinAndLoadMembers = async () => {
+      try {
+        const joinRes = await fetch(`/api/rooms/${roomId}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id, user_name: user.name, user_color: user.color })
+        });
+        if (!joinRes.ok) {
+          const err = await joinRes.json();
+          if (err.reason === 'removed') setMembershipStatus('removed');
+          else if (err.reason === 'entry_locked') setMembershipStatus('entry_locked');
+          return;
+        }
+      } catch { /* ignore network errors */ }
+
+      try {
+        const membersRes = await fetch(`/api/rooms/${roomId}/members`);
+        const membersData = await membersRes.json();
+        setMembers(membersData);
+      } catch { /* ignore */ }
+    };
+    joinAndLoadMembers();
+  }, [user, roomId]);
 
   // Load notifications
   useEffect(() => {
@@ -120,9 +204,9 @@ function Room() {
       .catch(() => {});
   }, [user]);
 
-  // Auto-scroll in chat view
+  // Auto-scroll contributions in collab view
   useEffect(() => {
-    if (view === 'chat') {
+    if (view === 'collab') {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [contributions, view]);
@@ -138,6 +222,7 @@ function Room() {
         body: JSON.stringify({
           author_id: user.id,
           author_name: user.name,
+          author_color: user.color || USER_COLORS[5],
           content: newText.trim()
         })
       });
@@ -155,6 +240,42 @@ function Room() {
   const handleTyping = () => {
     if (!user || !socketRef.current) return;
     socketRef.current.emit('typing', { roomId, userName: user.name });
+  };
+
+  const handleEditContribution = async (id, newContent) => {
+    const res = await fetch(`/api/contributions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, content: newContent })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to edit');
+    }
+  };
+
+  const handleApproveContribution = async (id) => {
+    await fetch(`/api/contributions/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, status: 'approved' })
+    });
+  };
+
+  const handleRejectContribution = async (id) => {
+    await fetch(`/api/contributions/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, status: 'rejected' })
+    });
+  };
+
+  const handleReorderContributions = async (orderedIds) => {
+    await fetch(`/api/rooms/${roomId}/reorder`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, order: orderedIds })
+    });
   };
 
   const handleDeleteContribution = async (id) => {
@@ -199,13 +320,49 @@ function Room() {
     return comments;
   };
 
-  const handleLockToggle = async () => {
+  const handleSendChat = async (content) => {
+    if (!user) return;
+    await fetch(`/api/rooms/${roomId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        author_id: user.id,
+        author_name: user.name,
+        author_color: user.color || USER_COLORS[5],
+        content
+      })
+    });
+  };
+
+  const handleContribLockToggle = async () => {
     if (!user || !room) return;
     await fetch(`/api/rooms/${roomId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, is_locked: !room.is_locked })
     });
+  };
+
+  const handleEntryLockToggle = async () => {
+    if (!user || !room) return;
+    await fetch(`/api/rooms/${roomId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, is_entry_locked: !room.is_entry_locked })
+    });
+  };
+
+  const handleRemoveMember = async (targetUserId) => {
+    if (!user || !isCreator) return;
+    if (!window.confirm('Remove this contributor from the room?')) return;
+    await fetch(`/api/rooms/${roomId}/members/${targetUserId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id })
+    });
+    // Refresh members
+    const res = await fetch(`/api/rooms/${roomId}/members`);
+    setMembers(await res.json());
   };
 
   const handleExport = () => {
@@ -245,6 +402,19 @@ function Room() {
 
   // Name prompt for unauthenticated users visiting a room link
   if (!user) {
+    // If room is entry-locked, block new visitors entirely
+    if (room?.is_entry_locked) {
+      return (
+        <div className="overlay">
+          <div className="prompt-card">
+            <div className="prompt-icon">🔒</div>
+            <h2>Room is closed</h2>
+            <p>This room is no longer accepting new contributors.</p>
+            <button className="btn btn-secondary" onClick={() => navigate('/')}>Go Home</button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="overlay">
         <div className="prompt-card">
@@ -254,7 +424,7 @@ function Room() {
           <form onSubmit={async (e) => {
             e.preventDefault();
             if (!nameInput.trim()) return;
-            await login(nameInput.trim());
+            await login(nameInput.trim(), undefined, joinColor);
           }}>
             <input
               className="input"
@@ -265,6 +435,20 @@ function Room() {
               maxLength={50}
               autoFocus
             />
+            <div className="color-picker-row">
+              <span className="color-picker-label">Pick your color</span>
+              <div className="color-picker">
+                {USER_COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-swatch${joinColor === c ? ' color-swatch--active' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => setJoinColor(c)}
+                  />
+                ))}
+              </div>
+            </div>
             <button className="btn btn-primary" type="submit" disabled={!nameInput.trim()}>
               Join Room →
             </button>
@@ -288,7 +472,38 @@ function Room() {
     );
   }
 
+  // Membership gate — show if authenticated user was removed or locked out
+  if (membershipStatus === 'removed') {
+    return (
+      <div className="error-screen">
+        <h2>You've been removed</h2>
+        <p>The room admin has removed you from this room.</p>
+        <button className="btn btn-primary" onClick={() => navigate('/')}>Go Home</button>
+      </div>
+    );
+  }
+
+  if (membershipStatus === 'entry_locked') {
+    return (
+      <div className="error-screen">
+        <h2>Room is closed</h2>
+        <p>This room is no longer accepting new contributors.</p>
+        <button className="btn btn-primary" onClick={() => navigate('/')}>Go Home</button>
+      </div>
+    );
+  }
+
   const isCreator = room?.creator_id === user?.id;
+
+  // Collab view: show pending + approved; also show own rejected so author knows
+  const collabContributions = contributions.filter(c =>
+    c.status !== 'rejected' || c.author_id === user?.id || isCreator
+  );
+
+  // Document view: only approved, sorted by sort_order ascending
+  const documentContributions = contributions
+    .filter(c => (c.status || 'approved') === 'approved')
+    .sort((a, b) => (a.sort_order || a.created_at) - (b.sort_order || b.created_at));
 
   return (
     <div className="room-layout">
@@ -300,17 +515,24 @@ function Room() {
           </button>
           <div className="room-title-wrap">
             <h1 className="room-title">{room?.title || 'Untitled Room'}</h1>
-            {!!room?.is_locked && <span className="badge badge-locked">🔒 Locked</span>}
+            {!!room?.is_entry_locked && <span className="badge badge-locked">🚪 Closed</span>}
+            {!!room?.is_locked && <span className="badge badge-locked">✏️ Locked</span>}
           </div>
         </div>
 
         <div className="room-header-right">
           <div className="view-toggle">
             <button
-              className={`toggle-btn ${view === 'chat' ? 'active' : ''}`}
-              onClick={() => setView('chat')}
+              className={`toggle-btn ${view === 'collab' ? 'active' : ''}`}
+              onClick={() => setView('collab')}
             >
-              Chat
+              Collab
+            </button>
+            <button
+              className={`toggle-btn ${view === 'review' ? 'active' : ''}`}
+              onClick={() => setView('review')}
+            >
+              Review
             </button>
             <button
               className={`toggle-btn ${view === 'document' ? 'active' : ''}`}
@@ -326,13 +548,32 @@ function Room() {
           <button className="btn btn-secondary" onClick={handleExport} title="Download as .txt">
             ↓ Export
           </button>
+          {/* Contributors button — visible to everyone */}
+          <button
+            className="btn btn-secondary contributors-btn"
+            onClick={() => setShowContributors(true)}
+            title="View contributors"
+          >
+            👥 {members.filter(m => !m.removed_at).length}
+          </button>
+
           {isCreator && (
-            <button
-              className={`btn ${room?.is_locked ? 'btn-success' : 'btn-warning'}`}
-              onClick={handleLockToggle}
-            >
-              {room?.is_locked ? '🔓 Unlock' : '🔒 Lock'}
-            </button>
+            <>
+              <button
+                className={`btn lock-btn ${room?.is_entry_locked ? 'lock-btn--active' : ''}`}
+                onClick={handleEntryLockToggle}
+                title={room?.is_entry_locked ? 'Entry locked — click to open' : 'Entry open — click to lock'}
+              >
+                {room?.is_entry_locked ? '🚪 Closed' : '🚪 Open'}
+              </button>
+              <button
+                className={`btn lock-btn ${room?.is_locked ? 'lock-btn--active' : ''}`}
+                onClick={handleContribLockToggle}
+                title={room?.is_locked ? 'Posts locked — click to unlock' : 'Posts open — click to lock'}
+              >
+                {room?.is_locked ? '✏️ Locked' : '✏️ Posts'}
+              </button>
+            </>
           )}
           <button className="btn-icon" onClick={toggleTheme} title="Toggle theme">
             {theme === 'light' ? '🌙' : '☀️'}
@@ -344,26 +585,50 @@ function Room() {
         </div>
       </header>
 
-      {/* ── Main ── */}
-      <main className="room-main">
-        {view === 'chat' ? (
-          <ChatView
-            contributions={contributions}
+      {/* ── Body: contributions + chat sidebar ── */}
+      <div className="room-body">
+        <main className="room-main">
+          {view === 'collab' && (
+            <ChatView
+              contributions={collabContributions}
+              currentUser={user}
+              isCreator={isCreator}
+              onDelete={handleDeleteContribution}
+              onEdit={handleEditContribution}
+              onReact={handleReaction}
+              onAddComment={handleAddComment}
+              onLoadComments={handleLoadComments}
+            />
+          )}
+          {view === 'review' && (
+            <ReviewView
+              contributions={contributions}
+              currentUser={user}
+              isCreator={isCreator}
+              onApprove={handleApproveContribution}
+              onReject={handleRejectContribution}
+              onReorder={handleReorderContributions}
+            />
+          )}
+          {view === 'document' && (
+            <DocumentView
+              contributions={documentContributions}
+              roomTitle={room?.title}
+            />
+          )}
+          <div ref={bottomRef} />
+        </main>
+
+        {view === 'collab' && (
+          <ChatSidebar
+            messages={chatMessages}
             currentUser={user}
-            isCreator={isCreator}
-            onDelete={handleDeleteContribution}
-            onReact={handleReaction}
-            onAddComment={handleAddComment}
-            onLoadComments={handleLoadComments}
-          />
-        ) : (
-          <DocumentView
-            contributions={contributions}
-            roomTitle={room?.title}
+            onSend={handleSendChat}
+            isOpen={chatOpen}
+            onToggle={() => setChatOpen(o => !o)}
           />
         )}
-        <div ref={bottomRef} />
-      </main>
+      </div>
 
       {/* ── Typing indicator ── */}
       {typingUsers.length > 0 && (
@@ -376,35 +641,48 @@ function Room() {
       )}
 
       {/* ── Input footer ── */}
-      {room?.is_locked ? (
-        <footer className="room-footer locked-footer">
-          <span>🔒 This room is locked — no new contributions can be added.</span>
-        </footer>
-      ) : (
-        <footer className="room-footer">
-          <form className="contribution-form" onSubmit={handleSubmit}>
-            <textarea
-              className="contribution-input"
-              placeholder={`Write something, ${user.name}… (Ctrl+Enter to post)`}
-              value={newText}
-              onChange={e => { setNewText(e.target.value); handleTyping(); }}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(e);
-              }}
-              rows={3}
-            />
-            <div className="form-actions">
-              <span className="form-hint">Ctrl + Enter to post</span>
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={submitting || !newText.trim()}
-              >
-                {submitting ? 'Posting…' : 'Post'}
-              </button>
-            </div>
-          </form>
-        </footer>
+      {view === 'collab' && (
+        room?.is_locked ? (
+          <footer className="room-footer locked-footer">
+            <span>🔒 This room is locked — no new contributions can be added.</span>
+          </footer>
+        ) : (
+          <footer className="room-footer">
+            <form className="contribution-form" onSubmit={handleSubmit}>
+              <textarea
+                className="contribution-input"
+                placeholder={`Write something, ${user.name}… (Ctrl+Enter to post)`}
+                value={newText}
+                onChange={e => { setNewText(e.target.value); handleTyping(); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(e);
+                }}
+                rows={3}
+              />
+              <div className="form-actions">
+                <span className="form-hint">Ctrl + Enter to post</span>
+                <button
+                  className="btn btn-primary"
+                  type="submit"
+                  disabled={submitting || !newText.trim()}
+                >
+                  {submitting ? 'Posting…' : 'Post'}
+                </button>
+              </div>
+            </form>
+          </footer>
+        )
+      )}
+
+      {/* Contributors panel */}
+      {showContributors && (
+        <ContributorsPanel
+          members={members}
+          isCreator={isCreator}
+          currentUser={user}
+          onRemove={handleRemoveMember}
+          onClose={() => setShowContributors(false)}
+        />
       )}
     </div>
   );
