@@ -1,0 +1,286 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const { store, save } = require('./db');
+
+const app = express();
+const server = http.createServer(app);
+
+const CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:4173'];
+
+const io = new Server(server, {
+  cors: { origin: CORS_ORIGINS, methods: ['GET', 'POST', 'PATCH', 'DELETE'] }
+});
+
+app.use(cors({ origin: CORS_ORIGINS }));
+app.use(express.json());
+
+// ============ HELPERS ============
+
+const now = () => Date.now();
+
+function createNotification(userId, roomId, type, message) {
+  const notif = { id: uuidv4(), user_id: userId, room_id: roomId, type, message, is_read: 0, created_at: now() };
+  store.notifications.push(notif);
+  save();
+  io.to(`user_${userId}`).emit('notification', notif);
+}
+
+// ============ USERS ============
+
+app.post('/api/users', (req, res) => {
+  const { name, id } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+
+  const trimmedName = name.trim();
+
+  if (id) {
+    const idx = store.users.findIndex(u => u.id === id);
+    if (idx !== -1) {
+      store.users[idx].name = trimmedName;
+      save();
+      return res.json(store.users[idx]);
+    }
+  }
+
+  const user = { id: id || uuidv4(), name: trimmedName, created_at: now() };
+  store.users.push(user);
+  save();
+  res.json(user);
+});
+
+// ============ ROOMS ============
+
+app.post('/api/rooms', (req, res) => {
+  const { title, creator_id } = req.body;
+  if (!creator_id) return res.status(400).json({ error: 'creator_id required' });
+
+  const room = {
+    id: uuidv4().replace(/-/g, '').slice(0, 10),
+    title: title?.trim() || null,
+    creator_id,
+    is_locked: 0,
+    created_at: now()
+  };
+  store.rooms.push(room);
+  save();
+  res.json(room);
+});
+
+app.get('/api/rooms/:id', (req, res) => {
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  res.json(room);
+});
+
+app.patch('/api/rooms/:id', (req, res) => {
+  const { is_locked, user_id } = req.body;
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.creator_id !== user_id) return res.status(403).json({ error: 'Only the room creator can do this' });
+
+  if (is_locked !== undefined) room.is_locked = is_locked ? 1 : 0;
+  save();
+  io.to(req.params.id).emit('room_updated', room);
+  res.json(room);
+});
+
+// ============ CONTRIBUTIONS ============
+
+app.get('/api/rooms/:id/contributions', (req, res) => {
+  const contribs = store.contributions
+    .filter(c => c.room_id === req.params.id)
+    .sort((a, b) => a.created_at - b.created_at)
+    .map(c => ({
+      ...c,
+      reactions: store.reactions.filter(r => r.contribution_id === c.id)
+    }));
+  res.json(contribs);
+});
+
+app.post('/api/rooms/:id/contributions', (req, res) => {
+  const room = store.rooms.find(r => r.id === req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.is_locked) return res.status(403).json({ error: 'This room is locked' });
+
+  const { author_id, author_name, content, parent_id } = req.body;
+  if (!content?.trim() || !author_id || !author_name) {
+    return res.status(400).json({ error: 'author_id, author_name, and content are required' });
+  }
+
+  const contribution = {
+    id: uuidv4(),
+    room_id: req.params.id,
+    author_id,
+    author_name,
+    content: content.trim(),
+    parent_id: parent_id || null,
+    created_at: now(),
+    reactions: []
+  };
+  store.contributions.push(contribution);
+  save();
+
+  io.to(req.params.id).emit('new_contribution', contribution);
+
+  // Notifications
+  if (parent_id) {
+    const parent = store.contributions.find(c => c.id === parent_id);
+    if (parent && parent.author_id !== author_id) {
+      createNotification(parent.author_id, req.params.id, 'reply', `${author_name} replied to your contribution`);
+    }
+  } else {
+    const seen = new Set();
+    store.contributions
+      .filter(c => c.room_id === req.params.id && c.author_id !== author_id && c.id !== contribution.id)
+      .forEach(c => {
+        if (!seen.has(c.author_id)) {
+          seen.add(c.author_id);
+          createNotification(c.author_id, req.params.id, 'new_contribution', `${author_name} added a new contribution`);
+        }
+      });
+  }
+
+  res.json(contribution);
+});
+
+app.delete('/api/contributions/:id', (req, res) => {
+  const { user_id } = req.body;
+  const idx = store.contributions.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+  const contribution = store.contributions[idx];
+  const room = store.rooms.find(r => r.id === contribution.room_id);
+
+  if (room.creator_id !== user_id && contribution.author_id !== user_id) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  store.contributions.splice(idx, 1);
+  store.reactions = store.reactions.filter(r => r.contribution_id !== req.params.id);
+  store.comments = store.comments.filter(c => c.contribution_id !== req.params.id);
+  save();
+
+  io.to(contribution.room_id).emit('contribution_deleted', { id: req.params.id });
+  res.json({ success: true });
+});
+
+// ============ COMMENTS ============
+
+app.get('/api/contributions/:id/comments', (req, res) => {
+  const comments = store.comments
+    .filter(c => c.contribution_id === req.params.id)
+    .sort((a, b) => a.created_at - b.created_at);
+  res.json(comments);
+});
+
+app.post('/api/contributions/:id/comments', (req, res) => {
+  const { author_id, author_name, content, parent_id } = req.body;
+  if (!content?.trim() || !author_id || !author_name) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const contribution = store.contributions.find(c => c.id === req.params.id);
+  if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+
+  const comment = {
+    id: uuidv4(),
+    contribution_id: req.params.id,
+    author_id,
+    author_name,
+    content: content.trim(),
+    parent_id: parent_id || null,
+    created_at: now()
+  };
+  store.comments.push(comment);
+  save();
+
+  io.to(contribution.room_id).emit('new_comment', { contribution_id: req.params.id, comment });
+
+  if (contribution.author_id !== author_id) {
+    createNotification(contribution.author_id, contribution.room_id, 'comment', `${author_name} commented on your contribution`);
+  }
+  if (parent_id) {
+    const parentComment = store.comments.find(c => c.id === parent_id);
+    if (parentComment && parentComment.author_id !== author_id && parentComment.author_id !== contribution.author_id) {
+      createNotification(parentComment.author_id, contribution.room_id, 'reply', `${author_name} replied to your comment`);
+    }
+  }
+
+  res.json(comment);
+});
+
+// ============ REACTIONS ============
+
+const ALLOWED_EMOJIS = ['👍', '❤️', '😄', '🔥', '✨'];
+
+app.post('/api/contributions/:id/reactions', (req, res) => {
+  const { user_id, emoji } = req.body;
+  if (!user_id || !emoji) return res.status(400).json({ error: 'Missing fields' });
+  if (!ALLOWED_EMOJIS.includes(emoji)) return res.status(400).json({ error: 'Invalid emoji' });
+
+  const contribution = store.contributions.find(c => c.id === req.params.id);
+  if (!contribution) return res.status(404).json({ error: 'Not found' });
+
+  const existingIdx = store.reactions.findIndex(
+    r => r.contribution_id === req.params.id && r.user_id === user_id && r.emoji === emoji
+  );
+
+  if (existingIdx !== -1) {
+    store.reactions.splice(existingIdx, 1);
+  } else {
+    store.reactions.push({ id: uuidv4(), contribution_id: req.params.id, user_id, emoji, created_at: now() });
+  }
+  save();
+
+  const reactions = store.reactions.filter(r => r.contribution_id === req.params.id);
+  io.to(contribution.room_id).emit('reactions_updated', { contribution_id: req.params.id, reactions });
+  res.json(reactions);
+});
+
+// ============ NOTIFICATIONS ============
+
+app.get('/api/notifications', (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  const notifs = store.notifications
+    .filter(n => n.user_id === user_id)
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 50);
+  res.json(notifs);
+});
+
+// Must come before /:id to avoid route conflict
+app.patch('/api/notifications/read-all', (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  store.notifications.filter(n => n.user_id === user_id).forEach(n => { n.is_read = 1; });
+  save();
+  res.json({ success: true });
+});
+
+app.patch('/api/notifications/:id/read', (req, res) => {
+  const notif = store.notifications.find(n => n.id === req.params.id);
+  if (notif) { notif.is_read = 1; save(); }
+  res.json({ success: true });
+});
+
+// ============ SOCKET.IO ============
+
+io.on('connection', (socket) => {
+  socket.on('join_room', (roomId) => socket.join(roomId));
+  socket.on('join_user', (userId) => socket.join(`user_${userId}`));
+  socket.on('leave_room', (roomId) => socket.leave(roomId));
+  socket.on('typing', ({ roomId, userName }) => {
+    socket.to(roomId).emit('user_typing', { userName });
+  });
+});
+
+// ============ START ============
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`\n✍️  Collab Write server → http://localhost:${PORT}\n`);
+});
