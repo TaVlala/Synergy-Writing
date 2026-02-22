@@ -62,7 +62,7 @@ function Room() {
       setContributions(prev =>
         prev.map(c =>
           c.id === contribution_id
-            ? { ...c, comments: c.comments ? [...c.comments, comment] : undefined }
+            ? { ...c, comments: c.comments ? [...c.comments, comment] : [comment] }
             : c
         )
       );
@@ -300,7 +300,7 @@ function Room() {
           </button>
           <div className="room-title-wrap">
             <h1 className="room-title">{room?.title || 'Untitled Room'}</h1>
-            {room?.is_locked && <span className="badge badge-locked">🔒 Locked</span>}
+            {!!room?.is_locked && <span className="badge badge-locked">🔒 Locked</span>}
           </div>
         </div>
 

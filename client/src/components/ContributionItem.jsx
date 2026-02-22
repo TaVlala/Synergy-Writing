@@ -37,14 +37,15 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onRe
   }, {});
 
   const handleToggleComments = async () => {
-    if (!commentsLoaded) {
+    if (!commentsLoaded && contribution.comments === undefined) {
       await onLoadComments(contribution.id);
-      setCommentsLoaded(true);
     }
+    setCommentsLoaded(true);
     setShowComments(v => !v);
   };
 
-  const commentCount = contribution.comments?.length ?? '?';
+  const hasCommentData = commentsLoaded || contribution.comments !== undefined;
+  const commentCount = contribution.comments?.length ?? 0;
 
   return (
     <article className={`contribution ${isOwn ? 'contribution--own' : ''}`}>
@@ -114,7 +115,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onRe
         </div>
 
         <button className="comment-toggle" onClick={handleToggleComments}>
-          💬 {commentsLoaded ? commentCount : '…'} comment{commentCount !== 1 ? 's' : ''}
+          💬 {hasCommentData ? commentCount : '…'} comment{commentCount !== 1 ? 's' : ''}
         </button>
       </div>
 
