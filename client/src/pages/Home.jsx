@@ -97,7 +97,7 @@ function Home() {
         <div className="home-actions">
           <div className="action-card">
             <h2>Create a Room</h2>
-            <p className="action-desc">Start a new collaborative writing space. A unique link is generated instantly.</p>
+            <p className="action-desc">Start a new collaborative writing space.</p>
             <form onSubmit={handleCreate}>
               <input
                 className="input"
@@ -119,7 +119,7 @@ function Home() {
 
           <div className="action-card">
             <h2>Join a Room</h2>
-            <p className="action-desc">Paste a room link or ID to join an existing writing session.</p>
+            <p className="action-desc">Join an existing writing session.</p>
             <form onSubmit={handleJoin}>
               <input
                 className="input"
