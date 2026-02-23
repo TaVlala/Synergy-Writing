@@ -281,6 +281,7 @@ body {
 
 .btn-link.muted {
   color: var(--text-muted);
+  margin-top: 24px;
 }
 
 .btn-icon {
