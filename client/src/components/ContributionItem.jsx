@@ -12,7 +12,7 @@ function renderContent(content) {
 
 const REACTIONS = ['👍', '❤️', '😄', '🔥', '✨'];
 
-function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEdit, onReact, onAddComment, onLoadComments }) {
+function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEdit, onReact, onAddComment, onLoadComments, onPin }) {
   const [showComments, setShowComments] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -93,7 +93,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
 
   return (
     <article
-      className={`contribution ${isOwn ? 'contribution--own' : ''}`}
+      className={`contribution ${isOwn ? 'contribution--own' : ''} ${contribution.pinned ? 'contribution--pinned' : ''}`}
       style={{ borderLeftColor: authorColor, borderLeftWidth: '4px' }}
     >
       {/* Header */}
@@ -115,6 +115,15 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
         )}
         {contribution.status === 'rejected' && (
           <span className="contrib-status-badge contrib-status-badge--rejected">Rejected</span>
+        )}
+        {isCreator && !editing && (
+          <button
+            className={`pin-btn${contribution.pinned ? ' pin-btn--active' : ''}`}
+            onClick={() => onPin(contribution.id, !contribution.pinned)}
+            title={contribution.pinned ? 'Unpin' : 'Pin to top'}
+          >
+            📌
+          </button>
         )}
         {canEdit && !editing && (
           <button className="edit-btn" onClick={handleEditStart} title="Edit contribution">

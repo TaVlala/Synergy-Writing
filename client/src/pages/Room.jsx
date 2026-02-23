@@ -85,7 +85,7 @@ function Room() {
 
     socket.on('contribution_updated', (updated) => {
       setContributions(prev =>
-        prev.map(c => c.id === updated.id ? { ...c, content: updated.content, edited_at: updated.edited_at } : c)
+        prev.map(c => c.id === updated.id ? { ...updated, comments: c.comments } : c)
       );
     });
 
@@ -276,6 +276,18 @@ function Room() {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to edit');
+    }
+  };
+
+  const handlePinContribution = async (id, pinned) => {
+    const res = await fetch(`/api/rooms/${roomId}/contributions/${id}/pin`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, pinned })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to pin');
     }
   };
 
@@ -644,6 +656,7 @@ function Room() {
               onReact={handleReaction}
               onAddComment={handleAddComment}
               onLoadComments={handleLoadComments}
+              onPin={handlePinContribution}
             />
           )}
           {view === 'review' && (

@@ -267,6 +267,33 @@ app.patch('/api/contributions/:id', (req, res) => {
   res.json(contribution);
 });
 
+// Pin / unpin a contribution (admin only, one pin per room)
+app.patch('/api/rooms/:roomId/contributions/:id/pin', (req, res) => {
+  const { user_id, pinned } = req.body;
+
+  const room = store.rooms.find(r => r.id === req.params.roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.creator_id !== user_id) return res.status(403).json({ error: 'Only admin can pin contributions' });
+
+  const contribution = store.contributions.find(c => c.id === req.params.id && c.room_id === req.params.roomId);
+  if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+
+  // Unpin any currently pinned contribution in this room
+  store.contributions
+    .filter(c => c.room_id === req.params.roomId && c.pinned)
+    .forEach(c => {
+      c.pinned = false;
+      io.to(c.room_id).emit('contribution_updated', c);
+    });
+
+  // Pin (or just unpin if toggling off)
+  contribution.pinned = !!pinned;
+  save();
+
+  io.to(contribution.room_id).emit('contribution_updated', contribution);
+  res.json(contribution);
+});
+
 app.delete('/api/contributions/:id', (req, res) => {
   const { user_id } = req.body;
   const idx = store.contributions.findIndex(c => c.id === req.params.id);
