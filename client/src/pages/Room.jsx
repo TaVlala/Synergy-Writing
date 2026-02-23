@@ -8,6 +8,7 @@ import ReviewView from '../components/ReviewView';
 import ChatSidebar from '../components/ChatSidebar';
 import ContributorsPanel from '../components/ContributorsPanel';
 import NotificationBell from '../components/NotificationBell';
+import RichEditor from '../components/RichEditor';
 import { USER_COLORS } from '../utils';
 
 function Room() {
@@ -21,8 +22,10 @@ function Room() {
   const [view, setView] = useState('collab');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newText, setNewText] = useState('');
+  const [editorHTML, setEditorHTML] = useState('');
+  const [editorEmpty, setEditorEmpty] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const editorRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [nameInput, setNameInput] = useState('');
@@ -212,8 +215,8 @@ function Room() {
   }, [contributions, view]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!newText.trim() || !user || submitting || room?.is_locked) return;
+    if (e?.preventDefault) e.preventDefault();
+    if (editorEmpty || !user || submitting || room?.is_locked) return;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/rooms/${roomId}/contributions`, {
@@ -223,14 +226,16 @@ function Room() {
           author_id: user.id,
           author_name: user.name,
           author_color: user.color || USER_COLORS[5],
-          content: newText.trim()
+          content: editorHTML
         })
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Failed to post');
       }
-      setNewText('');
+      editorRef.current?.clearContent();
+      setEditorHTML('');
+      setEditorEmpty(true);
     } catch (err) {
       alert(err.message);
     }
@@ -649,22 +654,22 @@ function Room() {
         ) : (
           <footer className="room-footer">
             <form className="contribution-form" onSubmit={handleSubmit}>
-              <textarea
-                className="contribution-input"
-                placeholder={`Write something, ${user.name}… (Ctrl+Enter to post)`}
-                value={newText}
-                onChange={e => { setNewText(e.target.value); handleTyping(); }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(e);
+              <RichEditor
+                ref={editorRef}
+                placeholder={`Write something, ${user.name}…`}
+                onChange={(html, isEmpty) => {
+                  setEditorHTML(html);
+                  setEditorEmpty(isEmpty);
+                  handleTyping();
                 }}
-                rows={3}
+                onSubmit={handleSubmit}
               />
               <div className="form-actions">
                 <span className="form-hint">Ctrl + Enter to post</span>
                 <button
                   className="btn btn-primary"
                   type="submit"
-                  disabled={submitting || !newText.trim()}
+                  disabled={submitting || editorEmpty}
                 >
                   {submitting ? 'Posting…' : 'Post'}
                 </button>

@@ -27,10 +27,10 @@ function DocumentView({ contributions, roomTitle }) {
       </div>
 
       <div className="document-body">
-        {contributions.map((c, i) => (
-          <p key={c.id} className="document-paragraph">
-            {c.content}
-          </p>
+        {contributions.map((c) => (
+          /<[a-z][\s\S]*>/i.test(c.content)
+            ? <div key={c.id} className="document-paragraph rich-content" dangerouslySetInnerHTML={{ __html: c.content }} />
+            : <p key={c.id} className="document-paragraph" style={{ whiteSpace: 'pre-wrap' }}>{c.content}</p>
         ))}
       </div>
 

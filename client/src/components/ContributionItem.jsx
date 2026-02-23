@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CommentSection from './CommentSection';
+import RichEditor from './RichEditor';
 import { getAuthorColor, formatTime } from '../utils';
+
+function renderContent(content) {
+  if (content && /<[a-z][\s\S]*>/i.test(content)) {
+    return <div className="rich-content" dangerouslySetInnerHTML={{ __html: content }} />;
+  }
+  return <p style={{ whiteSpace: 'pre-wrap' }}>{content}</p>;
+}
 
 const REACTIONS = ['👍', '❤️', '😄', '🔥', '✨'];
 
@@ -10,6 +18,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
   const [showPicker, setShowPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(contribution.content);
+  const [editEmpty, setEditEmpty] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const pickerRef = useRef(null);
@@ -22,13 +31,10 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
 
   const handleEditStart = () => {
     setEditText(contribution.content);
+    setEditEmpty(false);
     setEditError('');
     setEditing(true);
-    setTimeout(() => {
-      editRef.current?.focus();
-      const len = editRef.current?.value.length;
-      editRef.current?.setSelectionRange(len, len);
-    }, 0);
+    setTimeout(() => editRef.current?.focus(), 0);
   };
 
   const handleEditCancel = () => {
@@ -37,7 +43,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
   };
 
   const handleEditSave = async () => {
-    if (!editText.trim() || editText.trim() === contribution.content) {
+    if (editEmpty || editText === contribution.content) {
       setEditing(false);
       return;
     }
@@ -130,29 +136,24 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
       <div className="contribution-body">
         {editing ? (
           <div className="edit-form">
-            <textarea
+            <RichEditor
               ref={editRef}
-              className="edit-textarea"
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleEditSave();
-                if (e.key === 'Escape') handleEditCancel();
-              }}
-              rows={Math.max(3, editText.split('\n').length)}
+              initialContent={editText}
+              onChange={(html, isEmpty) => { setEditText(html); setEditEmpty(isEmpty); }}
+              onSubmit={handleEditSave}
             />
             {editError && <p className="edit-error">{editError}</p>}
             <div className="edit-actions">
               <button className="btn btn-secondary" onClick={handleEditCancel} disabled={editSaving}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={handleEditSave} disabled={editSaving || !editText.trim()}>
+              <button className="btn btn-primary" onClick={handleEditSave} disabled={editSaving || editEmpty}>
                 {editSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
         ) : (
-          <p>{contribution.content}</p>
+          renderContent(contribution.content)
         )}
       </div>
 

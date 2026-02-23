@@ -1,6 +1,13 @@
 import React from 'react';
 import { getAuthorColor, formatTime } from '../utils';
 
+function renderContent(content) {
+  if (content && /<[a-z][\s\S]*>/i.test(content)) {
+    return <div className="review-card-content rich-content" dangerouslySetInnerHTML={{ __html: content }} />;
+  }
+  return <p className="review-card-content" style={{ whiteSpace: 'pre-wrap' }}>{content}</p>;
+}
+
 function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject, onReorder }) {
   const pending = contributions
     .filter(c => c.status === 'pending')
@@ -63,7 +70,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                     {isOwn && <span className="review-card-you">you</span>}
                     <span className="review-card-time">{formatTime(c.created_at)}</span>
                   </div>
-                  <p className="review-card-content">{c.content}</p>
+                  {renderContent(c.content)}
                   {isCreator && (
                     <div className="review-card-actions">
                       <button className="btn-approve" onClick={() => onApprove(c.id)}>
@@ -131,7 +138,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                       </span>
                       <span className="review-card-time">{formatTime(c.created_at)}</span>
                     </div>
-                    <p className="review-card-content">{c.content}</p>
+                    {renderContent(c.content)}
                   </div>
                 </div>
               );
@@ -162,7 +169,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                     </span>
                     <span className="review-card-time">{formatTime(c.created_at)}</span>
                   </div>
-                  <p className="review-card-content">{c.content}</p>
+                  {renderContent(c.content)}
                   <div className="review-card-actions">
                     <button className="btn-approve" onClick={() => onApprove(c.id)}>
                       ↩ Restore
