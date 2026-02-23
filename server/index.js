@@ -489,12 +489,42 @@ app.patch('/api/notifications/:id/read', (req, res) => {
 
 // ============ SOCKET.IO ============
 
+// Presence map: socketId → { userId, roomId, userName, userColor }
+const presence = {};
+
+function getOnlineUsers(roomId) {
+  return Object.values(presence)
+    .filter(p => p.roomId === roomId)
+    .map(({ userId, userName, userColor }) => ({ userId, userName, userColor }));
+}
+
 io.on('connection', (socket) => {
   socket.on('join_room', (roomId) => socket.join(roomId));
   socket.on('join_user', (userId) => socket.join(`user_${userId}`));
-  socket.on('leave_room', (roomId) => socket.leave(roomId));
+
+  socket.on('user_online', ({ roomId, userId, userName, userColor }) => {
+    presence[socket.id] = { userId, roomId, userName, userColor };
+    io.to(roomId).emit('presence_update', getOnlineUsers(roomId));
+  });
+
+  socket.on('leave_room', (roomId) => {
+    socket.leave(roomId);
+    if (presence[socket.id]?.roomId === roomId) {
+      delete presence[socket.id];
+      io.to(roomId).emit('presence_update', getOnlineUsers(roomId));
+    }
+  });
+
   socket.on('typing', ({ roomId, userName }) => {
     socket.to(roomId).emit('user_typing', { userName });
+  });
+
+  socket.on('disconnect', () => {
+    const info = presence[socket.id];
+    if (info) {
+      delete presence[socket.id];
+      io.to(info.roomId).emit('presence_update', getOnlineUsers(info.roomId));
+    }
   });
 });
 

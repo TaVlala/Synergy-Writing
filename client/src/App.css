@@ -1835,6 +1835,68 @@ body {
 }
 .edit-form .ProseMirror { min-height: 60px; }
 
+/* ===================== PRESENCE AVATARS ===================== */
+
+.presence-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.presence-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--surface);
+  margin-left: -6px;
+  cursor: default;
+  position: relative;
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+.presence-avatar:first-child { margin-left: 0; }
+.presence-avatar:hover { transform: translateY(-2px); z-index: 1; }
+
+/* Green online dot */
+.presence-avatar::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 7px;
+  height: 7px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+}
+
+/* Slightly highlighted ring for self */
+.presence-avatar--self {
+  border-color: var(--primary);
+}
+
+.presence-overflow {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--secondary-bg);
+  border: 2px solid var(--surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -6px;
+  cursor: default;
+  flex-shrink: 0;
+}
+
 /* ===================== RESPONSIVE ===================== */
 
 @media (max-width: 768px) {

@@ -35,6 +35,7 @@ function Room() {
   const [members, setMembers] = useState([]);
   const [showContributors, setShowContributors] = useState(false);
   const [membershipStatus, setMembershipStatus] = useState(null); // null | 'removed' | 'entry_locked'
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   const socketRef = useRef(null);
   const typingTimerRef = useRef({});
@@ -49,7 +50,16 @@ function Room() {
 
     socket.on('connect', () => {
       socket.emit('join_room', roomId);
-      if (user) socket.emit('join_user', user.id);
+      const u = userRef.current;
+      if (u) {
+        socket.emit('join_user', u.id);
+        socket.emit('user_online', {
+          roomId,
+          userId: u.id,
+          userName: u.name,
+          userColor: u.color || USER_COLORS[5],
+        });
+      }
     });
 
     socket.on('new_contribution', (contribution) => {
@@ -138,16 +148,26 @@ function Room() {
       }, 3000);
     });
 
+    socket.on('presence_update', (users) => {
+      setOnlineUsers(users);
+    });
+
     return () => {
       socket.emit('leave_room', roomId);
       socket.disconnect();
     };
   }, [roomId]); // intentionally not including user to avoid reconnect on login
 
-  // Join user socket room once user is available
+  // Join user socket room + register presence once user is available
   useEffect(() => {
     if (user && socketRef.current?.connected) {
       socketRef.current.emit('join_user', user.id);
+      socketRef.current.emit('user_online', {
+        roomId,
+        userId: user.id,
+        userName: user.name,
+        userColor: user.color || USER_COLORS[5],
+      });
     }
   }, [user]);
 
@@ -553,6 +573,27 @@ function Room() {
           <button className="btn btn-secondary" onClick={handleExport} title="Download as .txt">
             ↓ Export
           </button>
+          {/* Online presence avatars */}
+          {onlineUsers.length > 0 && (
+            <div className="presence-avatars">
+              {onlineUsers.slice(0, 5).map(u => (
+                <span
+                  key={u.userId}
+                  className={`presence-avatar${u.userId === user?.id ? ' presence-avatar--self' : ''}`}
+                  style={{ background: u.userColor }}
+                  title={u.userId === user?.id ? `${u.userName} (you)` : u.userName}
+                >
+                  {u.userName.charAt(0).toUpperCase()}
+                </span>
+              ))}
+              {onlineUsers.length > 5 && (
+                <span className="presence-overflow" title={`${onlineUsers.length - 5} more online`}>
+                  +{onlineUsers.length - 5}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Contributors button — visible to everyone */}
           <button
             className="btn btn-secondary contributors-btn"
