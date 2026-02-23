@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
 
 const RichEditor = forwardRef(function RichEditor(
   { initialContent = '', onChange, onSubmit, placeholder },
@@ -12,7 +13,10 @@ const RichEditor = forwardRef(function RichEditor(
   useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    ],
     content: initialContent,
     editorProps: {
       attributes: {
@@ -100,6 +104,36 @@ const RichEditor = forwardRef(function RichEditor(
           onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run(); }}
           title="Blockquote"
         >❝</button>
+
+        <div className="toolbar-divider" />
+
+        <button
+          type="button"
+          className={`toolbar-btn${editor.isActive({ textAlign: 'left' }) ? ' toolbar-btn--active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor.chain().focus().setTextAlign('left').run(); }}
+          title="Align left"
+        >≡L</button>
+
+        <button
+          type="button"
+          className={`toolbar-btn${editor.isActive({ textAlign: 'center' }) ? ' toolbar-btn--active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor.chain().focus().setTextAlign('center').run(); }}
+          title="Align center"
+        >≡C</button>
+
+        <button
+          type="button"
+          className={`toolbar-btn${editor.isActive({ textAlign: 'right' }) ? ' toolbar-btn--active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor.chain().focus().setTextAlign('right').run(); }}
+          title="Align right"
+        >≡R</button>
+
+        <button
+          type="button"
+          className={`toolbar-btn${editor.isActive({ textAlign: 'justify' }) ? ' toolbar-btn--active' : ''}`}
+          onMouseDown={e => { e.preventDefault(); editor.chain().focus().setTextAlign('justify').run(); }}
+          title="Justify"
+        >≡J</button>
       </div>
 
       <EditorContent editor={editor} />
