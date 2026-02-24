@@ -26,11 +26,13 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
   };
 
   const handleInlineCommentCreate = async (commentId, updatedHTML) => {
-    // 1. Update the contribution content with the new mark
     await onUpdateContent?.(contribution.id, updatedHTML);
-    // 2. Open comments and focus on the new one
     setActiveInlineId(commentId);
     setShowComments(true);
+  };
+
+  const handleHighlightUpdate = async (updatedHTML) => {
+    await onUpdateContent?.(contribution.id, updatedHTML);
   };
 
   const authorColor = contribution.author_color || getAuthorColor(contribution.author_id);
@@ -178,8 +180,10 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
             <RichEditor
               initialContent={contribution.content}
               editable={false}
+              currentUserName={currentUser?.name}
               onCommentClick={handleInlineCommentClick}
               onInlineCommentCreate={handleInlineCommentCreate}
+              onHighlightUpdate={handleHighlightUpdate}
             />
           </div>
         )}

@@ -66,8 +66,8 @@ function CommentSection({ contributionId, comments, currentUser, onAddComment, a
 
   // Build tree
   const rootComments = activeInlineId
-    ? comments.filter(c => c.inline_id === activeInlineId)
-    : comments.filter(c => !c.parent_id);
+    ? comments.filter(c => c.inline_id === activeInlineId && !c.parent_id)
+    : comments.filter(c => !c.parent_id && !c.inline_id);
 
   const getChildren = (id) => comments.filter(c => c.parent_id === id);
 

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -13,8 +13,46 @@ import { Plugin } from '@tiptap/pm/state';
 import * as PMView from '@tiptap/pm/view';
 const { Decoration, DecorationSet } = PMView;
 
+// ── Global registry so only ONE selectionchange listener is ever active ──────
+// Maps each readonly instance's entry { containerRef, setMenu } so the single
+// handler can show the right menu and hide all others atomically.
+const readonlyRegistry = new Set();
+
+// Show menu on mouseup (after drag ends) — stable position, no jumping during drag
+function handleGlobalMouseUp() {
+  const sel = window.getSelection();
+  const hasSelection = sel && !sel.isCollapsed && sel.toString().trim();
+  let matched = false;
+  for (const entry of readonlyRegistry) {
+    const container = entry.containerRef.current;
+    if (!container) continue;
+    if (!matched && hasSelection && container.contains(sel.anchorNode)) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      // position: fixed uses viewport coords — no scrollY/scrollX offset
+      entry.setMenu({
+        visible: true,
+        top: rect.top - 44,
+        left: rect.left + rect.width / 2,
+      });
+      matched = true;
+    } else {
+      entry.setMenu(m => m.visible ? { ...m, visible: false } : m);
+    }
+  }
+}
+
+// Hide menu when selection collapses (click away, Escape, etc.)
+function handleGlobalSelectionChange() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+    for (const entry of readonlyRegistry) {
+      entry.setMenu(m => m.visible ? { ...m, visible: false } : m);
+    }
+  }
+}
+
 const RichEditor = forwardRef(function RichEditor(
-  { initialContent = '', onChange, onSubmit, placeholder, otherCursors = {}, onSelectionUpdate, onCommentClick, onInlineCommentCreate, editable = true },
+  { initialContent = '', onChange, onSubmit, placeholder, otherCursors = {}, onSelectionUpdate, onCommentClick, onInlineCommentCreate, onHighlightUpdate, editable = true, currentUserName = 'Anonymous' },
   ref
 ) {
   const onChangeRef = useRef(onChange);
@@ -24,22 +62,23 @@ const RichEditor = forwardRef(function RichEditor(
   useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
   useEffect(() => { onSelectionUpdateRef.current = onSelectionUpdate; }, [onSelectionUpdate]);
 
+  // Use a ref for otherCursors so the plugin always reads the latest value
+  const otherCursorsRef = useRef(otherCursors);
+  const containerRef = useRef(null);
+
+  const [linkPopover, setLinkPopover] = useState({ visible: false, value: '' });
+  const [readonlyMenu, setReadonlyMenu] = useState({ visible: false, top: 0, left: 0 });
+
   const CursorExtension = useMemo(() => {
     return Extension.create({
       name: 'cursors',
-      addOptions() {
-        return {
-          otherCursors: {},
-        };
-      },
       addProseMirrorPlugins() {
-        const extension = this;
         return [
           new Plugin({
             props: {
               decorations(state) {
                 const decos = [];
-                const cursors = extension.options.otherCursors || {};
+                const cursors = otherCursorsRef.current || {};
 
                 Object.entries(cursors).forEach(([userId, data]) => {
                   if (!data) return;
@@ -112,14 +151,11 @@ const RichEditor = forwardRef(function RichEditor(
     },
   });
 
-  // Reactive options update
+  // Update cursor ref and dispatch a no-op transaction to trigger decoration re-render
   useEffect(() => {
+    otherCursorsRef.current = otherCursors;
     if (editor && !editor.isDestroyed) {
-      editor.setOptions({
-        cursors: {
-          otherCursors,
-        },
-      });
+      editor.view.dispatch(editor.state.tr);
     }
   }, [editor, otherCursors]);
 
@@ -128,6 +164,24 @@ const RichEditor = forwardRef(function RichEditor(
       editor.setEditable(editable);
     }
   }, [editor, editable]);
+
+  // Register with the global registry when readonly; one shared listener handles all instances
+  useEffect(() => {
+    if (editable) return;
+    const entry = { containerRef, setMenu: setReadonlyMenu };
+    readonlyRegistry.add(entry);
+    if (readonlyRegistry.size === 1) {
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('selectionchange', handleGlobalSelectionChange);
+    }
+    return () => {
+      readonlyRegistry.delete(entry);
+      if (readonlyRegistry.size === 0) {
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+        document.removeEventListener('selectionchange', handleGlobalSelectionChange);
+      }
+    };
+  }, [editable]);
 
   useImperativeHandle(ref, () => ({
     clearContent() {
@@ -138,11 +192,22 @@ const RichEditor = forwardRef(function RichEditor(
     },
   }), [editor]);
 
+  const applyLink = () => {
+    if (linkPopover.value) {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: linkPopover.value }).run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    }
+    setLinkPopover({ visible: false, value: '' });
+  };
+
   if (!editor) return null;
 
   return (
     <div
+      ref={containerRef}
       className={`rich-editor${!editable ? ' rich-editor--readonly' : ''}`}
+      style={{ position: 'relative' }}
       onClick={e => {
         const target = e.target.closest('.inline-comment');
         if (target) {
@@ -151,6 +216,37 @@ const RichEditor = forwardRef(function RichEditor(
         }
       }}
     >
+      {/* Floating menu for readonly mode — rendered via fixed positioning to escape overflow:hidden parents */}
+      {!editable && readonlyMenu.visible && (
+        <div
+          className="readonly-bubble-menu"
+          style={{ position: 'fixed', top: readonlyMenu.top, left: readonlyMenu.left }}
+        >
+          <button
+            className="bubble-menu-btn"
+            onMouseDown={e => {
+              e.preventDefault();
+              const commentId = `comment-${Date.now()}`;
+              editor.chain().setComment(commentId, currentUserName).run();
+              onInlineCommentCreate?.(commentId, editor.getHTML());
+              setReadonlyMenu(m => ({ ...m, visible: false }));
+            }}
+          >
+            💬 Comment
+          </button>
+          <button
+            className="bubble-menu-btn"
+            onMouseDown={e => {
+              e.preventDefault();
+              editor.chain().toggleHighlight().run();
+              onHighlightUpdate?.(editor.getHTML());
+              setReadonlyMenu(m => ({ ...m, visible: false }));
+            }}
+          >
+            🖍️ Highlight
+          </button>
+        </div>
+      )}
       {editable && (
         <div className="rich-editor-toolbar">
           <button
@@ -245,17 +341,30 @@ const RichEditor = forwardRef(function RichEditor(
             className={`toolbar-btn${editor.isActive('link') ? ' toolbar-btn--active' : ''}`}
             onMouseDown={e => {
               e.preventDefault();
-              const previousUrl = editor.getAttributes('link').href;
-              const url = window.prompt('URL', previousUrl);
-              if (url === null) return;
-              if (url === '') {
-                editor.chain().focus().extendMarkRange('link').unsetLink().run();
-                return;
-              }
-              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+              const previousUrl = editor.getAttributes('link').href || '';
+              setLinkPopover({ visible: true, value: previousUrl });
             }}
             title="Link"
           >🔗</button>
+
+          {linkPopover.visible && (
+            <div className="toolbar-link-popover">
+              <input
+                className="input input--sm"
+                type="url"
+                placeholder="https://..."
+                value={linkPopover.value}
+                autoFocus
+                onChange={e => setLinkPopover(p => ({ ...p, value: e.target.value }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+                  if (e.key === 'Escape') setLinkPopover({ visible: false, value: '' });
+                }}
+              />
+              <button type="button" className="btn btn-sm" onMouseDown={e => { e.preventDefault(); applyLink(); }}>Apply</button>
+              <button type="button" className="btn btn-sm btn-ghost" onMouseDown={e => { e.preventDefault(); setLinkPopover({ visible: false, value: '' }); }}>✕</button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -288,13 +397,9 @@ const RichEditor = forwardRef(function RichEditor(
                 editor.chain().focus().unsetComment().run();
               } else {
                 const text = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to);
-                if (!text.trim()) {
-                  alert('Please select some text to comment on.');
-                  return;
-                }
+                if (!text.trim()) return;
                 const commentId = `comment-${Date.now()}`;
-                editor.chain().focus().setComment(commentId, 'You').run();
-                // In a real app, we'd open a modal here to type the comment
+                editor.chain().focus().setComment(commentId, currentUserName).run();
               }
             }}
             title="Inline Comment"
@@ -306,14 +411,14 @@ const RichEditor = forwardRef(function RichEditor(
 
       {editor && (
         <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }} shouldShow={({ editor, from, to }) => {
-          return !editor.isDestroyed && from !== to;
+          return !editor.isDestroyed && editor.isEditable && from !== to;
         }}>
           <div className="bubble-menu">
             <button
               className="bubble-menu-btn"
               onClick={() => {
                 const commentId = `comment-${Date.now()}`;
-                editor.chain().focus().setComment(commentId, 'You').run();
+                editor.chain().focus().setComment(commentId, currentUserName).run();
                 if (!editable) {
                   onInlineCommentCreate?.(commentId, editor.getHTML());
                 }

@@ -192,7 +192,8 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
   if (room.is_locked) return res.status(403).json({ error: 'This room is locked' });
 
   const { author_id, author_name, author_color, content, parent_id } = req.body;
-  if (!content?.trim() || !author_id || !author_name) {
+  const textContent = content?.replace(/<[^>]*>/g, '').trim();
+  if (!textContent || !author_id || !author_name) {
     return res.status(400).json({ error: 'author_id, author_name, and content are required' });
   }
 
@@ -301,6 +302,7 @@ app.delete('/api/contributions/:id', (req, res) => {
 
   const contribution = store.contributions[idx];
   const room = store.rooms.find(r => r.id === contribution.room_id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
 
   if (room.creator_id !== user_id && contribution.author_id !== user_id) {
     return res.status(403).json({ error: 'Not authorized' });

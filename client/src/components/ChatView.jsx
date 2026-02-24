@@ -2,7 +2,7 @@ import React from 'react';
 import ContributionItem from './ContributionItem';
 
 function ChatView({ contributions, currentUser, isCreator, onDelete, onEdit, onReact, onAddComment, onLoadComments, onPin }) {
-  if (contributions.length === 0) {
+  if (!Array.isArray(contributions) || contributions.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-icon">📝</div>

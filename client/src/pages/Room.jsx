@@ -28,6 +28,8 @@ function Room() {
   const [editorHTML, setEditorHTML] = useState('');
   const [editorEmpty, setEditorEmpty] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [postError, setPostError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
   const editorRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
@@ -294,7 +296,8 @@ function Room() {
       setEditorHTML('');
       setEditorEmpty(true);
     } catch (err) {
-      alert(err.message);
+      setPostError(err.message);
+      setTimeout(() => setPostError(''), 4000);
     }
     setSubmitting(false);
   };
@@ -363,12 +366,16 @@ function Room() {
     });
   };
 
-  const handleDeleteContribution = async (id) => {
-    if (!window.confirm('Delete this contribution?')) return;
-    await fetch(`/api/contributions/${id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user.id })
+  const handleDeleteContribution = (id) => {
+    setConfirmDialog({
+      message: 'Delete this contribution?',
+      onConfirm: async () => {
+        await fetch(`/api/contributions/${id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id })
+        });
+      }
     });
   };
 
@@ -438,17 +445,26 @@ function Room() {
     });
   };
 
-  const handleRemoveMember = async (targetUserId) => {
+  const handleRemoveMember = (targetUserId) => {
     if (!user || !isCreator) return;
-    if (!window.confirm('Remove this contributor from the room?')) return;
-    await fetch(`/api/rooms/${roomId}/members/${targetUserId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user.id })
+    setConfirmDialog({
+      message: 'Remove this contributor from the room?',
+      onConfirm: async () => {
+        await fetch(`/api/rooms/${roomId}/members/${targetUserId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id })
+        });
+        const res = await fetch(`/api/rooms/${roomId}/members`);
+        setMembers(await res.json());
+      }
     });
-    // Refresh members
-    const res = await fetch(`/api/rooms/${roomId}/members`);
-    setMembers(await res.json());
+  };
+
+  const stripHTML = (html) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
   };
 
   const handleExportTxt = () => {
@@ -487,7 +503,7 @@ function Room() {
       y += 7;
 
       doc.setFont('helvetica', 'normal');
-      const splitContent = doc.splitTextToSize(c.content, 170);
+      const splitContent = doc.splitTextToSize(stripHTML(c.content), 170);
       doc.text(splitContent, 20, y);
       y += (splitContent.length * 7) + 10;
 
@@ -527,7 +543,7 @@ function Room() {
         new Paragraph({
           children: [
             new TextRun({
-              text: c.content,
+              text: stripHTML(c.content),
             }),
           ],
         }),
@@ -892,6 +908,7 @@ function Room() {
                 ref={editorRef}
                 placeholder={`Write something, ${user?.name || 'Contributor'}…`}
                 otherCursors={otherCursors}
+                currentUserName={user?.name}
                 onChange={(html, isEmpty) => {
                   setEditorHTML(html);
                   setEditorEmpty(isEmpty);
@@ -902,6 +919,7 @@ function Room() {
               />
               <div className="form-actions">
                 <span className="form-hint">Ctrl + Enter to post</span>
+                {postError && <span className="form-error">{postError}</span>}
                 <button
                   className="btn btn-primary"
                   type="submit"
@@ -924,6 +942,19 @@ function Room() {
           onRemove={handleRemoveMember}
           onClose={() => setShowContributors(false)}
         />
+      )}
+
+      {/* Confirm dialog */}
+      {confirmDialog && (
+        <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <p className="modal-message">{confirmDialog.message}</p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}>Confirm</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
