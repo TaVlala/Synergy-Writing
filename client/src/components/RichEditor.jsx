@@ -204,23 +204,24 @@ const RichEditor = forwardRef(function RichEditor(
 
   const fetchSynonyms = async (word, pos) => {
     if (!word) return;
-    setThesaurus({ visible: true, word, synonyms: [], loading: true, pos });
+    const clean = word.trim().toLowerCase();
+    setThesaurus({ visible: true, word: word.trim(), synonyms: [], loading: true, pos });
     try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
-      if (!res.ok) throw new Error('Not found');
-      const data = await res.json();
-      const syns = new Set();
-      data.forEach(entry => {
-        entry.meanings.forEach(m => {
-          if (m.synonyms) m.synonyms.forEach(s => syns.add(s));
-          m.definitions.forEach(d => {
-            if (d.synonyms) d.synonyms.forEach(s => syns.add(s));
-          });
-        });
+      // Datamuse: rel_syn = synonyms, ml = means-like; fetch both for richness
+      const [synRes, mlRes] = await Promise.all([
+        fetch(`https://api.datamuse.com/words?rel_syn=${encodeURIComponent(clean)}&max=40`),
+        fetch(`https://api.datamuse.com/words?ml=${encodeURIComponent(clean)}&max=20`),
+      ]);
+      const [synData, mlData] = await Promise.all([synRes.json(), mlRes.json()]);
+      const seen = new Set();
+      const syns = [];
+      [...synData, ...mlData].forEach(({ word: w }) => {
+        if (w && w !== clean && !seen.has(w)) { seen.add(w); syns.push(w); }
       });
-      setThesaurus(prev => ({ ...prev, synonyms: Array.from(syns).slice(0, 10), loading: false }));
-    } catch (err) {
-      setThesaurus(prev => ({ ...prev, loading: false, word: 'No synonyms found.' }));
+      if (syns.length === 0) throw new Error('none');
+      setThesaurus(prev => ({ ...prev, synonyms: syns.slice(0, 30), loading: false }));
+    } catch {
+      setThesaurus(prev => ({ ...prev, synonyms: [], loading: false }));
     }
   };
 

@@ -470,9 +470,10 @@ function Room() {
 
   const handleExportTxt = () => {
     const title = room?.title || 'Untitled Story';
-    const content = contributions.map(c =>
-      `[${c.author_name} — ${new Date(c.created_at).toLocaleString()}]\n${c.content}`
-    ).join('\n\n---\n\n');
+    const approved = contributions
+      .filter(c => (c.status || 'approved') === 'approved')
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || new Date(a.created_at) - new Date(b.created_at));
+    const content = approved.map(c => stripHTML(c.content)).join('\n\n');
     const fullText = `${title}\n${'='.repeat(title.length)}\n\n${content}`;
 
     const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
@@ -495,18 +496,17 @@ function Room() {
 
     // Content
     doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
     let y = 40;
 
-    contributions.forEach(c => {
-      const meta = `${c.author_name} — ${new Date(c.created_at).toLocaleString()}`;
-      doc.setFont('helvetica', 'bold');
-      doc.text(meta, 20, y);
-      y += 7;
+    const approved = contributions
+      .filter(c => (c.status || 'approved') === 'approved')
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || new Date(a.created_at) - new Date(b.created_at));
 
-      doc.setFont('helvetica', 'normal');
+    approved.forEach(c => {
       const splitContent = doc.splitTextToSize(stripHTML(c.content), 170);
       doc.text(splitContent, 20, y);
-      y += (splitContent.length * 7) + 10;
+      y += (splitContent.length * 7) + 8;
 
       if (y > 270) {
         doc.addPage();
@@ -522,6 +522,10 @@ function Room() {
   const handleExportDocx = () => {
     const title = room?.title || 'Untitled Story';
 
+    const approved = contributions
+      .filter(c => (c.status || 'approved') === 'approved')
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || new Date(a.created_at) - new Date(b.created_at));
+
     const children = [
       new Paragraph({
         text: title,
@@ -531,41 +535,17 @@ function Room() {
       new Paragraph({ text: '' }),
     ];
 
-    contributions.forEach(c => {
+    approved.forEach(c => {
       children.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: `${c.author_name} — ${new Date(c.created_at).toLocaleString()}`,
-              bold: true,
-            }),
-          ],
+          children: [new TextRun({ text: stripHTML(c.content) })],
+          spacing: { after: 200 },
         }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: stripHTML(c.content),
-            }),
-          ],
-        }),
-        new Paragraph({ text: '' }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: '----------------------------------',
-              color: '999999',
-            }),
-          ],
-        }),
-        new Paragraph({ text: '' }),
       );
     });
 
     const doc = new Document({
-      sections: [{
-        properties: {},
-        children: children,
-      }],
+      sections: [{ properties: {}, children }],
     });
 
     Packer.toBlob(doc).then(blob => {
@@ -576,26 +556,23 @@ function Room() {
 
   const handleExportEpub = async () => {
     const title = room?.title || 'Untitled Story';
-    const content = contributions
+    const approved = contributions
       .filter(c => (c.status || 'approved') === 'approved')
-      .sort((a, b) => (a.sort_order || a.created_at) - (b.sort_order || b.created_at))
-      .map(c => ({
-        title: `By ${c.author_name}`,
-        data: `<h3>${c.author_name} — ${new Date(c.created_at).toLocaleString()}</h3>${c.content}`
-      }));
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || new Date(a.created_at) - new Date(b.created_at));
+
+    // Single chapter with all approved content joined
+    const bodyHtml = approved.map(c => `<p>${stripHTML(c.content)}</p>`).join('\n');
+    const content = [{ title, data: bodyHtml }];
 
     const option = {
       title,
       author: 'SynergY Contributors',
       publisher: 'SynergY Writing Platform',
-      content
+      content,
     };
 
     try {
-      const result = await epubGenerator(option, content);
-      // epubGenerator returns a Buffer (or Uint8Array) in browser if polyfilled correctly,
-      // or it might return a Blob depending on the internal version.
-      // We'll wrap it in a Blob to be safe for saveAs.
+      const result = await epubGenerator(option);
       const blob = result instanceof Blob ? result : new Blob([result], { type: 'application/epub+zip' });
       saveAs(blob, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.epub`);
     } catch (err) {
