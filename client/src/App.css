@@ -3275,6 +3275,28 @@ body {
   padding: 8px 18px;
   border-radius: 10px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.wordle-play-again {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.wordle-play-again:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
 }
 
 .wordle-result--won {

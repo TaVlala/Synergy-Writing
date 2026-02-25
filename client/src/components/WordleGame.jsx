@@ -83,9 +83,9 @@ const KEYBOARD_ROWS = [
   ['Enter','Z','X','C','V','B','N','M','⌫'],
 ];
 
-function getWord() {
-  const dayIndex = Math.floor(Date.now() / 86400000);
-  return WORDS[dayIndex % WORDS.length].toUpperCase();
+function getRandomWord(exclude) {
+  const pool = exclude ? WORDS.filter(w => w !== exclude.toLowerCase()) : WORDS;
+  return pool[Math.floor(Math.random() * pool.length)].toUpperCase();
 }
 
 function getTileState(guess, index, word) {
@@ -111,13 +111,22 @@ function getKeyState(letter, guesses, word) {
 }
 
 function WordleGame({ onClose }) {
-  const word = getWord();
+  const [word, setWord] = useState(() => getRandomWord());
   const [guesses, setGuesses] = useState([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [gameOver, setGameOver] = useState(false);
   const [won, setWon] = useState(false);
   const [shake, setShake] = useState(false);
   const [message, setMessage] = useState('');
+
+  const playAgain = () => {
+    setWord(getRandomWord(word));
+    setGuesses([]);
+    setCurrentGuess('');
+    setGameOver(false);
+    setWon(false);
+    setMessage('');
+  };
 
   const showMessage = (msg) => {
     setMessage(msg);
@@ -174,7 +183,7 @@ function WordleGame({ onClose }) {
           <div className="wordle-title">
             <span>🎮</span>
             <h2>Wordle</h2>
-            <span className="wordle-badge">Daily</span>
+            <span className="wordle-badge">Unlimited</span>
           </div>
           <button className="btn-icon" onClick={onClose} title="Close">✕</button>
         </div>
@@ -215,9 +224,8 @@ function WordleGame({ onClose }) {
 
           {gameOver && (
             <div className={`wordle-result ${won ? 'wordle-result--won' : 'wordle-result--lost'}`}>
-              {won
-                ? `You got it in ${guesses.length}! 🎉`
-                : `The word was ${word}`}
+              <span>{won ? `You got it in ${guesses.length}! 🎉` : `The word was ${word}`}</span>
+              <button className="wordle-play-again" onClick={playAgain}>Play Again</button>
             </div>
           )}
 
@@ -244,7 +252,7 @@ function WordleGame({ onClose }) {
             ))}
           </div>
 
-          <p className="wordle-hint">New word every day · same for everyone</p>
+          <p className="wordle-hint">Random word each game · play as many as you like</p>
         </div>
       </div>
     </div>
