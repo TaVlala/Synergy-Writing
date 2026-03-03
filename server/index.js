@@ -541,6 +541,10 @@ app.patch('/api/notifications/:id/read', (req, res) => {
 // Presence map: socketId → { userId, roomId, userName, userColor }
 const presence = {};
 
+// Game challenge state (in-memory)
+const pendingChallenges = {};   // toUserId → [challenge, ...]
+const activeGameChallenges = {}; // challengeId → challenge data
+
 function getOnlineUsers(roomId) {
   return Object.values(presence)
     .filter(p => p.roomId === roomId)
@@ -549,7 +553,14 @@ function getOnlineUsers(roomId) {
 
 io.on('connection', (socket) => {
   socket.on('join_room', (roomId) => socket.join(roomId));
-  socket.on('join_user', (userId) => socket.join(`user_${userId}`));
+  socket.on('join_user', (userId) => {
+    socket.join(`user_${userId}`);
+    // Deliver any pending game challenges for this user
+    if (pendingChallenges[userId]?.length) {
+      pendingChallenges[userId].forEach(ch => socket.emit('game:challenge:received', ch));
+      delete pendingChallenges[userId];
+    }
+  });
 
   socket.on('user_online', ({ roomId, userId, userName, userColor }) => {
     presence[socket.id] = { userId, roomId, userName, userColor };
@@ -578,6 +589,40 @@ io.on('connection', (socket) => {
       delete presence[socket.id];
       io.to(info.roomId).emit('presence_update', getOnlineUsers(info.roomId));
     }
+  });
+
+  // ── Game challenge events ──────────────────────────────────────────────
+  socket.on('game:challenge', ({ toUserId, game, seed, fromUser, challengeId }) => {
+    const challenge = { challengeId, game, seed, fromUser };
+    activeGameChallenges[challengeId] = challenge;
+    const isOnline = Object.values(presence).some(p => p.userId === toUserId);
+    if (isOnline) {
+      io.to(`user_${toUserId}`).emit('game:challenge:received', challenge);
+    } else {
+      if (!pendingChallenges[toUserId]) pendingChallenges[toUserId] = [];
+      pendingChallenges[toUserId].push(challenge);
+    }
+  });
+
+  socket.on('game:challenge:respond', ({ challengeId, accepted, fromUserId, respondingUser }) => {
+    const challenge = activeGameChallenges[challengeId];
+    delete activeGameChallenges[challengeId];
+    if (accepted) {
+      io.to(`user_${fromUserId}`).emit('game:challenge:accepted', {
+        game: challenge?.game,
+        seed: challenge?.seed,
+        opponentName: respondingUser.name,
+        opponentId: respondingUser.id,
+      });
+    } else {
+      io.to(`user_${fromUserId}`).emit('game:challenge:declined', {
+        opponentName: respondingUser.name,
+      });
+    }
+  });
+
+  socket.on('game:result', ({ toUserId, result }) => {
+    io.to(`user_${toUserId}`).emit('game:opponent:result', { result });
   });
 });
 

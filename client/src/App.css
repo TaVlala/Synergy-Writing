@@ -3629,6 +3629,230 @@ body {
   margin: 0;
 }
 
+/* ===================== GAME MENU DROPDOWN ===================== */
+.game-menu-wrap {
+  position: relative;
+}
+
+.game-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  padding: 6px;
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn 0.12s ease;
+}
+
+.game-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.game-menu-item:hover {
+  background: var(--surface-hover, rgba(255,255,255,0.06));
+}
+
+.game-menu-item--active {
+  color: var(--primary);
+}
+
+.game-menu-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.game-menu-badge {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  background: rgba(6,182,212,0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* ===================== CHALLENGE UI ===================== */
+
+.challenge-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  background: var(--surface-raised);
+  border: 1.5px solid var(--primary);
+  border-radius: 14px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  animation: slideUp 0.2s ease;
+  max-width: 420px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.challenge-toast--decline {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.challenge-toast-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.challenge-toast .btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.challenge-toast .btn-sm.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.challenge-toast .btn-sm.btn-secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.challenge-wrap {
+  position: relative;
+}
+
+.challenge-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 170px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 6px;
+  z-index: 900;
+  animation: fadeIn 0.12s ease;
+}
+
+.challenge-picker-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px 6px;
+  margin: 0;
+}
+
+.challenge-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.challenge-picker-item:hover {
+  background: var(--surface-hover, rgba(255,255,255,0.06));
+}
+
+.challenge-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+.vs-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(6,182,212,0.07);
+  border: 1px solid rgba(6,182,212,0.2);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.vs-playing {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.vs-result {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.vs-result--won {
+  color: #538d4e;
+  background: rgba(83,141,78,0.12);
+}
+
+.vs-result--lost {
+  color: #e05555;
+  background: rgba(224,85,85,0.12);
+}
+
+@keyframes slideUp {
+  from { transform: translate(-50%, 20px); opacity: 0; }
+  to   { transform: translate(-50%, 0);   opacity: 1; }
+}
+
 /* ===================== HANGMAN GAME ===================== */
 .hangman-panel {
   width: 360px;

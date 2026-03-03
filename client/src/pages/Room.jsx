@@ -50,6 +50,11 @@ function Room() {
   const [showWordle, setShowWordle] = useState(false);
   const [showHangman, setShowHangman] = useState(false);
   const [showWordLadder, setShowWordLadder] = useState(false);
+  // 1v1 game challenge state
+  const [incomingChallenge, setIncomingChallenge] = useState(null); // { challengeId, game, seed, fromUser }
+  const [gameSession, setGameSession] = useState(null);             // { game, seed, opponentName, opponentId }
+  const [opponentResult, setOpponentResult] = useState(null);       // { outcome, score }
+  const [challengeMsg, setChallengeMsg] = useState('');             // "X declined" feedback
   const [membershipStatus, setMembershipStatus] = useState(null); // null | 'removed' | 'entry_locked'
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [otherCursors, setOtherCursors] = useState({}); // { userId: { pos, color, name } }
@@ -188,6 +193,29 @@ function Room() {
         ...prev,
         [userId]: { position, color: userColor, name: userName }
       }));
+    });
+
+    // ── Game challenge events ───────────────────────────────────────────
+    socket.on('game:challenge:received', (challenge) => {
+      setIncomingChallenge(challenge);
+    });
+
+    socket.on('game:challenge:accepted', ({ game, seed, opponentName, opponentId }) => {
+      setGameSession({ game, seed, opponentName, opponentId });
+      setOpponentResult(null);
+      if (game === 'wordle')     setShowWordle(true);
+      if (game === 'hangman')    setShowHangman(true);
+      if (game === 'wordladder') setShowWordLadder(true);
+    });
+
+    socket.on('game:challenge:declined', ({ opponentName }) => {
+      setGameSession(null);
+      setChallengeMsg(`${opponentName} declined the challenge`);
+      setTimeout(() => setChallengeMsg(''), 3500);
+    });
+
+    socket.on('game:opponent:result', ({ result }) => {
+      setOpponentResult(result);
     });
 
     return () => {
@@ -649,6 +677,66 @@ function Room() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  // ── Game challenge handlers ───────────────────────────────────────────
+  const GAME_LABELS = { wordle: 'Wordle', hangman: 'Hangman', wordladder: 'Word Ladder' };
+
+  const handleSendChallenge = (toUserId, toUserName, game) => {
+    const seed = Math.floor(Math.random() * 100000);
+    const challengeId = `${user?.id || 'anon'}_${Date.now()}`;
+    socketRef.current?.emit('game:challenge', {
+      toUserId, game, seed, challengeId,
+      fromUser: { id: user?.id, name: user?.name },
+    });
+    setGameSession({ game, seed, opponentId: toUserId, opponentName: toUserName });
+    setOpponentResult(null);
+  };
+
+  const acceptChallenge = () => {
+    if (!incomingChallenge) return;
+    const u = userRef.current;
+    socketRef.current?.emit('game:challenge:respond', {
+      challengeId: incomingChallenge.challengeId,
+      accepted: true,
+      fromUserId: incomingChallenge.fromUser.id,
+      respondingUser: { id: u?.id, name: u?.name },
+    });
+    setGameSession({
+      game: incomingChallenge.game,
+      seed: incomingChallenge.seed,
+      opponentName: incomingChallenge.fromUser.name,
+      opponentId: incomingChallenge.fromUser.id,
+    });
+    setOpponentResult(null);
+    const g = incomingChallenge.game;
+    setIncomingChallenge(null);
+    if (g === 'wordle')     setShowWordle(true);
+    if (g === 'hangman')    setShowHangman(true);
+    if (g === 'wordladder') setShowWordLadder(true);
+  };
+
+  const declineChallenge = () => {
+    if (!incomingChallenge) return;
+    const u = userRef.current;
+    socketRef.current?.emit('game:challenge:respond', {
+      challengeId: incomingChallenge.challengeId,
+      accepted: false,
+      fromUserId: incomingChallenge.fromUser.id,
+      respondingUser: { id: u?.id, name: u?.name },
+    });
+    setIncomingChallenge(null);
+  };
+
+  const handleVsResult = (result) => {
+    if (gameSession?.opponentId) {
+      socketRef.current?.emit('game:result', { toUserId: gameSession.opponentId, result });
+    }
+  };
+
+  const clearGameSession = () => {
+    setGameSession(null);
+    setOpponentResult(null);
+  };
+
   const markAllNotificationsRead = async () => {
     if (!user) return;
     await fetch('/api/notifications/read-all', {
@@ -885,22 +973,62 @@ function Room() {
       {/* Wordle game panel */}
       {showWordle && (
         <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
-          <WordleGame onClose={() => setShowWordle(false)} />
+          <WordleGame
+            onClose={() => { setShowWordle(false); clearGameSession(); }}
+            members={members}
+            currentUser={user}
+            onSendChallenge={(toId, toName) => handleSendChallenge(toId, toName, 'wordle')}
+            vsSession={gameSession?.game === 'wordle' ? gameSession : null}
+            opponentResult={gameSession?.game === 'wordle' ? opponentResult : null}
+            onVsResult={handleVsResult}
+          />
         </React.Suspense>
       )}
 
       {/* Hangman game panel */}
       {showHangman && (
         <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
-          <HangmanGame onClose={() => setShowHangman(false)} />
+          <HangmanGame
+            onClose={() => { setShowHangman(false); clearGameSession(); }}
+            members={members}
+            currentUser={user}
+            onSendChallenge={(toId, toName) => handleSendChallenge(toId, toName, 'hangman')}
+            vsSession={gameSession?.game === 'hangman' ? gameSession : null}
+            opponentResult={gameSession?.game === 'hangman' ? opponentResult : null}
+            onVsResult={handleVsResult}
+          />
         </React.Suspense>
       )}
 
       {/* Word Ladder game panel */}
       {showWordLadder && (
         <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
-          <WordLadder onClose={() => setShowWordLadder(false)} />
+          <WordLadder
+            onClose={() => { setShowWordLadder(false); clearGameSession(); }}
+            members={members}
+            currentUser={user}
+            onSendChallenge={(toId, toName) => handleSendChallenge(toId, toName, 'wordladder')}
+            vsSession={gameSession?.game === 'wordladder' ? gameSession : null}
+            opponentResult={gameSession?.game === 'wordladder' ? opponentResult : null}
+            onVsResult={handleVsResult}
+          />
         </React.Suspense>
+      )}
+
+      {/* Incoming challenge toast */}
+      {incomingChallenge && (
+        <div className="challenge-toast">
+          <span>⚔️ <strong>{incomingChallenge.fromUser?.name}</strong> challenges you to {GAME_LABELS[incomingChallenge.game] || incomingChallenge.game}!</span>
+          <div className="challenge-toast-actions">
+            <button className="btn-sm btn-primary" onClick={acceptChallenge}>Accept</button>
+            <button className="btn-sm btn-secondary" onClick={declineChallenge}>Decline</button>
+          </div>
+        </div>
+      )}
+
+      {/* Challenge decline feedback */}
+      {challengeMsg && !incomingChallenge && (
+        <div className="challenge-toast challenge-toast--decline">{challengeMsg}</div>
       )}
 
       {/* Confirm dialog */}

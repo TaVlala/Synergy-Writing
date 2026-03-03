@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import NotificationBell from './NotificationBell';
 import ExportMenu from './ExportMenu';
 
@@ -33,6 +33,26 @@ function RoomHeader({
   markAllNotificationsRead
 }) {
   const isCreator = room?.creator_id && user?.id && room.creator_id === user.id;
+  const anyGameOpen = showWordle || showHangman || showWordLadder;
+
+  const [showGameMenu, setShowGameMenu] = useState(false);
+  const gameMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (gameMenuRef.current && !gameMenuRef.current.contains(e.target)) {
+        setShowGameMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleGame = (setter, others) => {
+    others.forEach(s => s(false));
+    setter(v => !v);
+    setShowGameMenu(false);
+  };
 
   return (
     <header className="room-header">
@@ -121,27 +141,45 @@ function RoomHeader({
           >
             👥 {members.filter(m => !m.removed_at).length}
           </button>
-          <button
-            className={`btn-icon${showWordle ? ' active' : ''}`}
-            onClick={() => setShowWordle(v => !v)}
-            title="Play Wordle"
-          >
-            🎮
-          </button>
-          <button
-            className={`btn-icon${showHangman ? ' active' : ''}`}
-            onClick={() => setShowHangman(v => !v)}
-            title="Play Hangman"
-          >
-            🎭
-          </button>
-          <button
-            className={`btn-icon${showWordLadder ? ' active' : ''}`}
-            onClick={() => setShowWordLadder(v => !v)}
-            title="Play Word Ladder"
-          >
-            🪜
-          </button>
+
+          {/* Games dropdown */}
+          <div ref={gameMenuRef} className="game-menu-wrap">
+            <button
+              className={`btn-icon${anyGameOpen ? ' active' : ''}`}
+              onClick={() => setShowGameMenu(v => !v)}
+              title="Games"
+            >
+              🎮
+            </button>
+            {showGameMenu && (
+              <div className="game-menu-dropdown">
+                <button
+                  className={`game-menu-item${showWordle ? ' game-menu-item--active' : ''}`}
+                  onClick={() => toggleGame(setShowWordle, [setShowHangman, setShowWordLadder])}
+                >
+                  <span className="game-menu-icon">🟩</span>
+                  <span>Wordle</span>
+                  {showWordle && <span className="game-menu-badge">open</span>}
+                </button>
+                <button
+                  className={`game-menu-item${showHangman ? ' game-menu-item--active' : ''}`}
+                  onClick={() => toggleGame(setShowHangman, [setShowWordle, setShowWordLadder])}
+                >
+                  <span className="game-menu-icon">🎭</span>
+                  <span>Hangman</span>
+                  {showHangman && <span className="game-menu-badge">open</span>}
+                </button>
+                <button
+                  className={`game-menu-item${showWordLadder ? ' game-menu-item--active' : ''}`}
+                  onClick={() => toggleGame(setShowWordLadder, [setShowWordle, setShowHangman])}
+                >
+                  <span className="game-menu-icon">🪜</span>
+                  <span>Word Ladder</span>
+                  {showWordLadder && <span className="game-menu-badge">open</span>}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {isCreator && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const WORDS = [
   'about','above','abuse','actor','acute','admit','adopt','adult','after','again',
@@ -88,6 +88,10 @@ function getRandomWord(exclude) {
   return pool[Math.floor(Math.random() * pool.length)].toUpperCase();
 }
 
+function getWordFromSeed(seed) {
+  return WORDS[seed % WORDS.length].toUpperCase();
+}
+
 function getTileState(guess, index, word) {
   const letter = guess[index];
   if (!letter) return '';
@@ -110,22 +114,56 @@ function getKeyState(letter, guesses, word) {
   return best;
 }
 
-function WordleGame({ onClose }) {
-  const [word, setWord] = useState(() => getRandomWord());
+function WordleGame({ onClose, members = [], currentUser, onSendChallenge, vsSession, opponentResult, onVsResult }) {
+  const initWord = () => vsSession ? getWordFromSeed(vsSession.seed) : getRandomWord();
+
+  const [word, setWord] = useState(initWord);
   const [guesses, setGuesses] = useState([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [gameOver, setGameOver] = useState(false);
   const [won, setWon] = useState(false);
   const [shake, setShake] = useState(false);
   const [message, setMessage] = useState('');
+  const [resultReported, setResultReported] = useState(false);
+
+  // Challenge picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [challengeSent, setChallengeSent] = useState(false);
+  const pickerRef = useRef(null);
+
+  // Reset when vsSession seed changes (new challenge accepted)
+  useEffect(() => {
+    if (vsSession) {
+      setWord(getWordFromSeed(vsSession.seed));
+      setGuesses([]); setCurrentGuess('');
+      setGameOver(false); setWon(false); setMessage('');
+      setResultReported(false);
+    }
+  }, [vsSession?.seed]); // eslint-disable-line
+
+  // Click outside to close picker
+  useEffect(() => {
+    const handler = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Report VS result once when game ends
+  useEffect(() => {
+    if (gameOver && vsSession && !resultReported) {
+      setResultReported(true);
+      onVsResult?.({ outcome: won ? 'won' : 'lost', score: won ? guesses.length : null });
+    }
+  }, [gameOver, vsSession, won, guesses.length, resultReported, onVsResult]);
 
   const playAgain = () => {
+    if (vsSession) return;
     setWord(getRandomWord(word));
-    setGuesses([]);
-    setCurrentGuess('');
-    setGameOver(false);
-    setWon(false);
-    setMessage('');
+    setGuesses([]); setCurrentGuess('');
+    setGameOver(false); setWon(false); setMessage('');
+    setResultReported(false);
   };
 
   const showMessage = (msg) => {
@@ -143,34 +181,24 @@ function WordleGame({ onClose }) {
     const newGuesses = [...guesses, currentGuess];
     setGuesses(newGuesses);
     setCurrentGuess('');
-    if (currentGuess === word) {
-      setWon(true);
-      setGameOver(true);
-    } else if (newGuesses.length >= 6) {
-      setGameOver(true);
-    }
+    if (currentGuess === word) { setWon(true); setGameOver(true); }
+    else if (newGuesses.length >= 6) { setGameOver(true); }
   }, [currentGuess, guesses, word]);
 
   const handleKey = useCallback((key) => {
     if (gameOver) return;
     if (key === 'ENTER') { submitGuess(); return; }
-    if (key === '⌫' || key === 'BACKSPACE') {
-      setCurrentGuess(g => g.slice(0, -1));
-      return;
-    }
-    if (/^[A-Z]$/.test(key) && currentGuess.length < 5) {
-      setCurrentGuess(g => g + key);
-    }
+    if (key === '⌫' || key === 'BACKSPACE') { setCurrentGuess(g => g.slice(0, -1)); return; }
+    if (/^[A-Z]$/.test(key) && currentGuess.length < 5) setCurrentGuess(g => g + key);
   }, [gameOver, currentGuess, submitGuess]);
 
   useEffect(() => {
-    const onKeyDown = (e) => {
-      const key = e.key.toUpperCase();
-      handleKey(key);
-    };
+    const onKeyDown = (e) => handleKey(e.key.toUpperCase());
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleKey]);
+
+  const eligibleMembers = members.filter(m => m.user_id !== currentUser?.id && !m.removed_at);
 
   const rows = [...guesses];
   while (rows.length < 6) rows.push('');
@@ -178,17 +206,63 @@ function WordleGame({ onClose }) {
   return (
     <div className="wordle-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="wordle-panel">
-
         <div className="wordle-header">
           <div className="wordle-title">
             <span>🎮</span>
             <h2>Wordle</h2>
-            <span className="wordle-badge">Unlimited</span>
+            <span className="wordle-badge">{vsSession ? `vs ${vsSession.opponentName}` : 'Unlimited'}</span>
           </div>
-          <button className="btn-icon" onClick={onClose} title="Close">✕</button>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {/* Challenge button — only show when not in a VS session */}
+            {!vsSession && eligibleMembers.length > 0 && (
+              <div ref={pickerRef} className="challenge-wrap">
+                {challengeSent
+                  ? <span className="challenge-sent-msg">⏳ Waiting…</span>
+                  : (
+                    <button
+                      className="btn-icon"
+                      onClick={() => setShowPicker(v => !v)}
+                      title="Challenge a player to 1v1"
+                    >⚔️</button>
+                  )
+                }
+                {showPicker && (
+                  <div className="challenge-picker">
+                    <p className="challenge-picker-label">Challenge to Wordle:</p>
+                    {eligibleMembers.map(m => (
+                      <button key={m.user_id} className="challenge-picker-item" onClick={() => {
+                        onSendChallenge?.(m.user_id, m.name);
+                        setChallengeSent(true);
+                        setShowPicker(false);
+                      }}>
+                        <span className="challenge-avatar">{(m.name || '?').charAt(0).toUpperCase()}</span>
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <button className="btn-icon" onClick={onClose} title="Close">✕</button>
+          </div>
         </div>
 
         <div className="wordle-body">
+          {/* VS status bar */}
+          {vsSession && (
+            <div className="vs-status-bar">
+              <span>⚔️ vs <strong>{vsSession.opponentName}</strong></span>
+              {opponentResult
+                ? <span className={`vs-result vs-result--${opponentResult.outcome}`}>
+                    {opponentResult.outcome === 'won'
+                      ? `Won in ${opponentResult.score} ✓`
+                      : 'Lost ✗'}
+                  </span>
+                : <span className="vs-playing">Playing…</span>
+              }
+            </div>
+          )}
+
           {message && <div className="wordle-message">{message}</div>}
 
           <div className="wordle-board">
@@ -197,7 +271,6 @@ function WordleGame({ onClose }) {
               const displayGuess = isCurrentRow ? currentGuess : rowGuess;
               const isSubmitted = rowIdx < guesses.length;
               const isShaking = isCurrentRow && shake;
-
               return (
                 <div key={rowIdx} className={`wordle-row${isShaking ? ' wordle-row--shake' : ''}`}>
                   {Array.from({ length: 5 }).map((_, colIdx) => {
@@ -225,7 +298,7 @@ function WordleGame({ onClose }) {
           {gameOver && (
             <div className={`wordle-result ${won ? 'wordle-result--won' : 'wordle-result--lost'}`}>
               <span>{won ? `You got it in ${guesses.length}! 🎉` : `The word was ${word}`}</span>
-              <button className="wordle-play-again" onClick={playAgain}>Play Again</button>
+              {!vsSession && <button className="wordle-play-again" onClick={playAgain}>Play Again</button>}
             </div>
           )}
 
@@ -252,7 +325,9 @@ function WordleGame({ onClose }) {
             ))}
           </div>
 
-          <p className="wordle-hint">Random word each game · play as many as you like</p>
+          <p className="wordle-hint">
+            {vsSession ? 'Same word — first to solve wins ⚔️' : 'Random word each game · play as many as you like'}
+          </p>
         </div>
       </div>
     </div>

@@ -93,68 +93,145 @@ function getRandomPuzzle(excludeFrom) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function WordLadder({ onClose }) {
-  const [puzzle, setPuzzle] = useState(() => getRandomPuzzle());
+function getPuzzleFromSeed(seed) {
+  return PUZZLES[seed % PUZZLES.length];
+}
+
+function WordLadder({ onClose, members = [], currentUser, onSendChallenge, vsSession, opponentResult, onVsResult }) {
+  const initPuzzle = () => vsSession ? getPuzzleFromSeed(vsSession.seed) : getRandomPuzzle();
+
+  const [puzzle, setPuzzle] = useState(initPuzzle);
   const [ladder, setLadder] = useState(() => [puzzle.from]);
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [won, setWon] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
+  const [resultReported, setResultReported] = useState(false);
   const inputRef = useRef(null);
+
+  // Challenge picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [challengeSent, setChallengeSent] = useState(false);
+  const pickerRef = useRef(null);
 
   const currentWord = ladder[ladder.length - 1];
   const steps = ladder.length - 1;
+
+  // Reset when vsSession seed changes
+  useEffect(() => {
+    if (vsSession) {
+      const p = getPuzzleFromSeed(vsSession.seed);
+      setPuzzle(p);
+      setLadder([p.from]);
+      setInput(''); setError('');
+      setWon(false); setGaveUp(false);
+      setResultReported(false);
+    }
+  }, [vsSession?.seed]); // eslint-disable-line
 
   useEffect(() => {
     if (inputRef.current && !won && !gaveUp) inputRef.current.focus();
   }, [won, gaveUp]);
 
+  // Click outside to close picker
+  useEffect(() => {
+    const handler = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Report VS result once when game ends
+  useEffect(() => {
+    if ((won || gaveUp) && vsSession && !resultReported) {
+      setResultReported(true);
+      onVsResult?.({ outcome: won ? 'won' : 'lost', score: won ? steps : null });
+    }
+  }, [won, gaveUp, vsSession, steps, resultReported, onVsResult]);
+
   const submit = () => {
     const word = input.trim().toUpperCase();
     if (!word) return;
-    if (word.length !== puzzle.from.length) {
-      setError(`Must be ${puzzle.from.length} letters`); return;
-    }
-    if (!WORDS.has(word)) {
-      setError('Not a valid word'); return;
-    }
-    if (!isOneLetterApart(currentWord, word)) {
-      setError('Must differ by exactly 1 letter'); return;
-    }
-    if (ladder.includes(word)) {
-      setError('Already used that word'); return;
-    }
+    if (word.length !== puzzle.from.length) { setError(`Must be ${puzzle.from.length} letters`); return; }
+    if (!WORDS.has(word)) { setError('Not a valid word'); return; }
+    if (!isOneLetterApart(currentWord, word)) { setError('Must differ by exactly 1 letter'); return; }
+    if (ladder.includes(word)) { setError('Already used that word'); return; }
     const next = [...ladder, word];
     setLadder(next);
-    setInput('');
-    setError('');
+    setInput(''); setError('');
     if (word === puzzle.to) setWon(true);
   };
 
   const newGame = () => {
+    if (vsSession) return;
     const p = getRandomPuzzle(puzzle.from);
-    setPuzzle(p);
-    setLadder([p.from]);
-    setInput('');
-    setError('');
-    setWon(false);
-    setGaveUp(false);
+    setPuzzle(p); setLadder([p.from]);
+    setInput(''); setError('');
+    setWon(false); setGaveUp(false);
+    setResultReported(false);
   };
+
+  const eligibleMembers = members.filter(m => m.user_id !== currentUser?.id && !m.removed_at);
 
   return (
     <div className="wordle-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="wordle-panel word-ladder-panel">
-
         <div className="wordle-header">
           <div className="wordle-title">
             <span>🪜</span>
             <h2>Word Ladder</h2>
-            <span className="wordle-badge">par {puzzle.par}</span>
+            <span className="wordle-badge">{vsSession ? `vs ${vsSession.opponentName}` : `par ${puzzle.par}`}</span>
           </div>
-          <button className="btn-icon" onClick={onClose} title="Close">✕</button>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {!vsSession && eligibleMembers.length > 0 && (
+              <div ref={pickerRef} className="challenge-wrap">
+                {challengeSent
+                  ? <span className="challenge-sent-msg">⏳ Waiting…</span>
+                  : (
+                    <button
+                      className="btn-icon"
+                      onClick={() => setShowPicker(v => !v)}
+                      title="Challenge a player to 1v1"
+                    >⚔️</button>
+                  )
+                }
+                {showPicker && (
+                  <div className="challenge-picker">
+                    <p className="challenge-picker-label">Challenge to Word Ladder:</p>
+                    {eligibleMembers.map(m => (
+                      <button key={m.user_id} className="challenge-picker-item" onClick={() => {
+                        onSendChallenge?.(m.user_id, m.name);
+                        setChallengeSent(true);
+                        setShowPicker(false);
+                      }}>
+                        <span className="challenge-avatar">{(m.name || '?').charAt(0).toUpperCase()}</span>
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <button className="btn-icon" onClick={onClose} title="Close">✕</button>
+          </div>
         </div>
 
         <div className="wordle-body">
+          {/* VS status bar */}
+          {vsSession && (
+            <div className="vs-status-bar">
+              <span>⚔️ vs <strong>{vsSession.opponentName}</strong></span>
+              {opponentResult
+                ? <span className={`vs-result vs-result--${opponentResult.outcome}`}>
+                    {opponentResult.outcome === 'won'
+                      ? `Won in ${opponentResult.score} ✓`
+                      : 'Lost ✗'}
+                  </span>
+                : <span className="vs-playing">Playing…</span>
+              }
+            </div>
+          )}
 
           {/* Goal */}
           <div className="ladder-goal">
@@ -166,7 +243,10 @@ function WordLadder({ onClose }) {
           {/* Steps so far */}
           <div className="ladder-steps">
             {ladder.map((w, i) => (
-              <div key={i} className={`ladder-step${w === puzzle.to ? ' ladder-step--final' : i === ladder.length - 1 && !won ? ' ladder-step--current' : ''}`}>
+              <div
+                key={i}
+                className={`ladder-step${w === puzzle.to ? ' ladder-step--final' : i === ladder.length - 1 && !won ? ' ladder-step--current' : ''}`}
+              >
                 <span className="ladder-step-num">{i === 0 ? '▶' : i}</span>
                 <span className="ladder-step-word">
                   {i === 0
@@ -205,7 +285,7 @@ function WordLadder({ onClose }) {
               <span>
                 {steps <= puzzle.par ? `${steps} steps — under par! 🎉` : `Solved in ${steps} steps 👍`}
               </span>
-              <button className="wordle-play-again" onClick={newGame}>New Puzzle</button>
+              {!vsSession && <button className="wordle-play-again" onClick={newGame}>New Puzzle</button>}
             </div>
           )}
 
@@ -213,7 +293,7 @@ function WordLadder({ onClose }) {
             <div className="wordle-result wordle-result--lost">
               <span>One solution:</span>
               <div className="ladder-solution">{puzzle.solution.join(' → ')}</div>
-              <button className="wordle-play-again" onClick={newGame}>New Puzzle</button>
+              {!vsSession && <button className="wordle-play-again" onClick={newGame}>New Puzzle</button>}
             </div>
           )}
 
@@ -221,7 +301,12 @@ function WordLadder({ onClose }) {
             <button className="ladder-giveup" onClick={() => setGaveUp(true)}>Give Up</button>
           )}
 
-          <p className="wordle-hint">Change 1 letter per step · {steps} step{steps !== 1 ? 's' : ''} taken · par {puzzle.par}</p>
+          <p className="wordle-hint">
+            {vsSession
+              ? `Same puzzle — fewest steps wins ⚔️ · par ${puzzle.par}`
+              : `Change 1 letter per step · ${steps} step${steps !== 1 ? 's' : ''} taken · par ${puzzle.par}`
+            }
+          </p>
         </div>
       </div>
     </div>
