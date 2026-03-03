@@ -20,6 +20,10 @@ function RoomHeader({
   members,
   showWordle,
   setShowWordle,
+  showHangman,
+  setShowHangman,
+  showWordLadder,
+  setShowWordLadder,
   setShowContributors,
   handleEntryLockToggle,
   handleContribLockToggle,
@@ -123,6 +127,20 @@ function RoomHeader({
             title="Play Wordle"
           >
             🎮
+          </button>
+          <button
+            className={`btn-icon${showHangman ? ' active' : ''}`}
+            onClick={() => setShowHangman(v => !v)}
+            title="Play Hangman"
+          >
+            🎭
+          </button>
+          <button
+            className={`btn-icon${showWordLadder ? ' active' : ''}`}
+            onClick={() => setShowWordLadder(v => !v)}
+            title="Play Word Ladder"
+          >
+            🪜
           </button>
         </div>
 

@@ -3629,6 +3629,278 @@ body {
   margin: 0;
 }
 
+/* ===================== HANGMAN GAME ===================== */
+.hangman-panel {
+  width: 360px;
+}
+
+.hangman-svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.hangman-gallows {
+  stroke: var(--text-primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.hangman-figure {
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.hangman-counter {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+.hangman-wrong-letters {
+  color: #e05555;
+  font-weight: 600;
+}
+
+.hangman-word {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.hangman-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 42px;
+  border-bottom: 3px solid var(--border);
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  transition: color 0.2s;
+}
+
+.hangman-letter--revealed {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.hangman-letter--missed {
+  border-color: #e05555;
+  color: #e05555;
+}
+
+.hangman-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  width: 100%;
+}
+
+.hangman-key-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.hangman-key {
+  min-width: 30px;
+  height: 38px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-primary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  padding: 0 4px;
+}
+
+.hangman-key:hover:not(:disabled) {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.hangman-key:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.hangman-key--wrong {
+  background: #e05555;
+  border-color: #e05555;
+  color: white;
+}
+
+.hangman-key--correct {
+  background: #538d4e;
+  border-color: #538d4e;
+  color: white;
+}
+
+/* ===================== WORD LADDER GAME ===================== */
+.word-ladder-panel {
+  width: 360px;
+}
+
+.ladder-goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.ladder-word {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+.ladder-word--from {
+  background: var(--surface-raised);
+  border: 2px solid var(--border);
+  color: var(--text-primary);
+}
+
+.ladder-word--to {
+  background: var(--primary);
+  color: white;
+  border: 2px solid var(--primary);
+}
+
+.ladder-arrow {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+}
+
+.ladder-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ladder-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  border: 1.5px solid var(--border);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: border-color 0.2s;
+}
+
+.ladder-step--current {
+  border-color: var(--primary);
+}
+
+.ladder-step--final {
+  border-color: #538d4e;
+  background: rgba(83, 141, 78, 0.1);
+}
+
+.ladder-step-num {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  min-width: 16px;
+  text-align: center;
+}
+
+.ladder-step-word {
+  color: var(--text-primary);
+}
+
+.ladder-changed {
+  background: none;
+  color: var(--primary);
+  font-style: normal;
+}
+
+.ladder-input-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.ladder-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.ladder-input:focus {
+  border-color: var(--primary);
+}
+
+.ladder-submit {
+  padding: 8px 14px;
+  font-size: 1.1rem;
+}
+
+.ladder-error {
+  font-size: 0.8rem;
+  color: #e05555;
+  text-align: center;
+  margin: 0;
+}
+
+.ladder-solution {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  text-align: center;
+  padding: 6px 10px;
+  background: var(--surface-raised);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.ladder-giveup {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.ladder-giveup:hover {
+  color: #e05555;
+}
+
 @keyframes tileShake {
 
   0%,

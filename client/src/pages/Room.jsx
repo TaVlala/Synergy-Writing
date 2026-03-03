@@ -17,6 +17,8 @@ import SidebarComponent from '../components/SidebarComponent';
 const ChatSidebar = React.lazy(() => import('../components/ChatSidebar'));
 const ContributorsPanel = React.lazy(() => import('../components/ContributorsPanel'));
 const WordleGame = React.lazy(() => import('../components/WordleGame'));
+const HangmanGame = React.lazy(() => import('../components/HangmanGame'));
+const WordLadder = React.lazy(() => import('../components/WordLadder'));
 
 function Room() {
   const { id: roomId } = useParams();
@@ -46,6 +48,8 @@ function Room() {
   const [members, setMembers] = useState([]);
   const [showContributors, setShowContributors] = useState(false);
   const [showWordle, setShowWordle] = useState(false);
+  const [showHangman, setShowHangman] = useState(false);
+  const [showWordLadder, setShowWordLadder] = useState(false);
   const [membershipStatus, setMembershipStatus] = useState(null); // null | 'removed' | 'entry_locked'
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [otherCursors, setOtherCursors] = useState({}); // { userId: { pos, color, name } }
@@ -737,6 +741,10 @@ function Room() {
         members={members}
         showWordle={showWordle}
         setShowWordle={setShowWordle}
+        showHangman={showHangman}
+        setShowHangman={setShowHangman}
+        showWordLadder={showWordLadder}
+        setShowWordLadder={setShowWordLadder}
         setShowContributors={setShowContributors}
         handleEntryLockToggle={handleEntryLockToggle}
         handleContribLockToggle={handleContribLockToggle}
@@ -878,6 +886,20 @@ function Room() {
       {showWordle && (
         <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
           <WordleGame onClose={() => setShowWordle(false)} />
+        </React.Suspense>
+      )}
+
+      {/* Hangman game panel */}
+      {showHangman && (
+        <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
+          <HangmanGame onClose={() => setShowHangman(false)} />
+        </React.Suspense>
+      )}
+
+      {/* Word Ladder game panel */}
+      {showWordLadder && (
+        <React.Suspense fallback={<div className="modal-loading-overlay"><div className="spinner" /></div>}>
+          <WordLadder onClose={() => setShowWordLadder(false)} />
         </React.Suspense>
       )}
 
