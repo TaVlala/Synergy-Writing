@@ -638,7 +638,7 @@ app.post('/api/rooms/:id/export/epub', async (req, res) => {
   try {
     const epubGen = require('epub-gen-memory');
     const fn = epubGen.default || epubGen;
-    const buffer = await fn({ title, author: 'SynergY Contributors', publisher: 'SynergY Writing Platform' }, chapters);
+    const buffer = await fn({ title, author: 'Penwove Contributors', publisher: 'Penwove' }, chapters);
     const safeTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     res.setHeader('Content-Type', 'application/epub+zip');
     res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.epub"`);

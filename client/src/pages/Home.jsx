@@ -87,8 +87,8 @@ function Home() {
           {theme === 'light' ? '🌙' : '☀️'}
         </button>
         <div className="home-hero">
-          <img src="/assets/logo.svg" alt="SynergY Logo" className="home-logo-img" />
-          <h1 className="home-title">SynergY</h1>
+          <img src="/assets/logo.svg" alt="Penwove Logo" className="home-logo-img" />
+          <h1 className="home-title">Penwove</h1>
           <p className="home-subtitle">Draft together. Polish together. Argue over semi-colons together.</p>
           <form className="name-form" onSubmit={handleSetName}>
             <input
@@ -120,8 +120,8 @@ function Home() {
         {theme === 'light' ? '🌙' : '☀️'}
       </button>
       <div className="home-hero">
-        <img src="/assets/logo.svg" alt="SynergY Logo" className="home-logo-img" />
-        <h1 className="home-title">SynergY</h1>
+        <img src="/assets/logo.svg" alt="Penwove Logo" className="home-logo-img" />
+        <h1 className="home-title">Penwove</h1>
         <p className="home-subtitle" style={{ opacity: 0.8, fontSize: '0.95em', marginBottom: 24 }}>
           Great minds think alike. Better minds write together.
         </p>
