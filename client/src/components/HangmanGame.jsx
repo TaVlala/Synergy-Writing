@@ -38,6 +38,8 @@ function HangmanSVG({ wrong }) {
       {wrong >= 4 && <line x1="75" y1="55" x2="95" y2="70" className="hangman-figure" />}
       {wrong >= 5 && <line x1="75" y1="80" x2="55" y2="100" className="hangman-figure" />}
       {wrong >= 6 && <line x1="75" y1="80" x2="95" y2="100" className="hangman-figure" />}
+      {wrong >= 7 && <line x1="45" y1="100" x2="60" y2="100" className="hangman-figure" />}
+      {wrong >= 8 && <line x1="90" y1="100" x2="105" y2="100" className="hangman-figure" />}
     </svg>
   );
 }
@@ -48,7 +50,7 @@ const KEY_ROWS = [
   ['Z','X','C','V','B','N','M'],
 ];
 
-const MAX_WRONG = 6;
+const MAX_WRONG = 8;
 
 function HangmanGame({ onClose, members = [], currentUser, onSendChallenge, vsSession, opponentResult, onVsResult }) {
   const initWord = () => vsSession ? getWordFromSeed(vsSession.seed) : getRandomWord();
