@@ -884,13 +884,9 @@ function Room() {
             <ChatSidebar
               isOpen={chatOpen}
               onToggle={() => setChatOpen(!chatOpen)}
-              roomId={roomId}
-              socket={socketRef.current}
               currentUser={user}
               messages={chatMessages}
-              setMessages={setChatMessages}
-              activeCommentId={activeCommentId}
-              setActiveCommentId={setActiveCommentId}
+              onSend={handleSendChat}
             />
           </React.Suspense>
         )}
