@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Pin, Pencil, Trash2, AlertTriangle, SmilePlus, MessageCircle } from 'lucide-react';
 import CommentSection from './CommentSection';
 import RichEditor from './RichEditor';
 import { getAuthorColor, formatTime, stripHTML } from '../utils';
@@ -132,12 +133,12 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
             onClick={() => onPin(contribution.id, !contribution.pinned)}
             title={contribution.pinned ? 'Unpin' : 'Pin to top'}
           >
-            📌
+            <Pin size={13} />
           </button>
         )}
         {canEdit && !editing && (
           <button className="edit-btn" onClick={handleEditStart} title="Edit contribution">
-            ✎
+            <Pencil size={13} />
           </button>
         )}
         {canDelete && !editing && (
@@ -146,7 +147,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
             onClick={() => onDelete(contribution.id)}
             title="Delete contribution"
           >
-            ×
+            <Trash2 size={13} />
           </button>
         )}
       </div>
@@ -156,7 +157,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
         {editing ? (
           <div className="edit-form">
             {contribution.status === 'approved' && (
-              <p className="edit-reapproval-warning">⚠️ Saving will remove this from the document until re-approved by admin.</p>
+              <p className="edit-reapproval-warning"><AlertTriangle size={13} /> Saving will remove this from the document until re-approved by admin.</p>
             )}
             <RichEditor
               ref={editRef}
@@ -206,7 +207,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
               onClick={() => setShowPicker(v => !v)}
               title="Add reaction"
             >
-              + 😊
+              <SmilePlus size={15} />
             </button>
             {showPicker && (
               <div className="reaction-picker">
@@ -225,7 +226,7 @@ function ContributionItem({ contribution, currentUser, isCreator, onDelete, onEd
         </div>
 
         <button className={`comment-toggle ${isActiveComment ? 'active' : ''}`} onClick={handleToggleComments}>
-          💬 {hasCommentData ? commentCount : '…'} comment{commentCount !== 1 ? 's' : ''}
+          <MessageCircle size={14} /> {hasCommentData ? commentCount : '…'} comment{commentCount !== 1 ? 's' : ''}
         </button>
       </div>
     </article>

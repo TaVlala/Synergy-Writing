@@ -1,4 +1,5 @@
 import React from 'react';
+import { Lock, PenLine } from 'lucide-react';
 import { APP_COLORS } from '../utils';
 
 function JoinRoomForm({
@@ -14,7 +15,7 @@ function JoinRoomForm({
     return (
       <div className="overlay">
         <div className="prompt-card">
-          <div className="prompt-icon">🔒</div>
+          <div className="prompt-icon"><Lock size={32} strokeWidth={1.3} /></div>
           <h2>Room is closed</h2>
           <p>This room is no longer accepting new contributors.</p>
           <button className="btn btn-secondary" onClick={() => navigate('/')}>Go Home</button>
@@ -26,7 +27,7 @@ function JoinRoomForm({
   return (
     <div className="overlay">
       <div className="prompt-card">
-        <div className="prompt-icon">✍️</div>
+        <div className="prompt-icon"><PenLine size={32} strokeWidth={1.3} /></div>
         <h2>Enter your name to join</h2>
         <p>You'll be able to read and contribute to this room.</p>
         <form onSubmit={async (e) => {

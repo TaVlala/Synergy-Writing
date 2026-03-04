@@ -1,4 +1,5 @@
 import React from 'react';
+import { Clock, FileText, XCircle, Check, X, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import RichEditor from './RichEditor';
 import { getAuthorColor, formatTime } from '../utils';
 
@@ -41,7 +42,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
       {/* ── Pending section ── */}
       <section className="review-section">
         <div className="review-section-header">
-          <span className="review-section-icon">⏳</span>
+          <span className="review-section-icon"><Clock size={16} /></span>
           <h2 className="review-section-title">Pending Review</h2>
           {pending.length > 0 && (
             <span className="review-count review-count--pending">{pending.length}</span>
@@ -76,10 +77,10 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                   {isCreator && (
                     <div className="review-card-actions">
                       <button className="btn-approve" onClick={() => onApprove(c.id)}>
-                        ✓ Approve
+                        <Check size={14} /> Approve
                       </button>
                       <button className="btn-reject" onClick={() => onReject(c.id)}>
-                        ✕ Reject
+                        <X size={14} /> Reject
                       </button>
                     </div>
                   )}
@@ -93,7 +94,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
       {/* ── Approved / Document Order section ── */}
       <section className="review-section">
         <div className="review-section-header">
-          <span className="review-section-icon">📄</span>
+          <span className="review-section-icon"><FileText size={16} /></span>
           <h2 className="review-section-title">Document Order</h2>
           {approved.length > 0 && (
             <span className="review-count review-count--approved">{approved.length}</span>
@@ -120,13 +121,13 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                           onClick={() => handleMoveUp(idx)}
                           disabled={idx === 0}
                           title="Move up"
-                        >▲</button>
+                        ><ChevronUp size={14} /></button>
                         <button
                           className="move-btn"
                           onClick={() => handleMoveDown(idx)}
                           disabled={idx === approved.length - 1}
                           title="Move down"
-                        >▼</button>
+                        ><ChevronDown size={14} /></button>
                       </div>
                     )}
                   </div>
@@ -153,7 +154,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
       {isCreator && rejected.length > 0 && (
         <section className="review-section review-section--collapsed">
           <div className="review-section-header">
-            <span className="review-section-icon">✕</span>
+            <span className="review-section-icon"><XCircle size={16} /></span>
             <h2 className="review-section-title">Rejected</h2>
             <span className="review-count review-count--rejected">{rejected.length}</span>
           </div>
@@ -174,7 +175,7 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                   {renderContent(c.content)}
                   <div className="review-card-actions">
                     <button className="btn-approve" onClick={() => onApprove(c.id)}>
-                      ↩ Restore
+                      <RotateCcw size={14} /> Restore
                     </button>
                   </div>
                 </div>

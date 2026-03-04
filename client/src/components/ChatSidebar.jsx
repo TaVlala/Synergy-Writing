@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { X, MessageSquare, Send } from 'lucide-react';
 import { formatTime } from '../utils';
 
 function ChatSidebar({ messages, currentUser, onSend, isOpen, onToggle }) {
@@ -46,7 +47,7 @@ function ChatSidebar({ messages, currentUser, onSend, isOpen, onToggle }) {
               onClick={onToggle}
               title="Collapse chat"
             >
-              <span className="icon-wrap">✕</span>
+              <span className="icon-wrap"><X size={16} /></span>
             </button>
           </>
         ) : (
@@ -55,7 +56,7 @@ function ChatSidebar({ messages, currentUser, onSend, isOpen, onToggle }) {
             onClick={onToggle}
             title="Expand chat"
           >
-            <span className="icon-wrap">💬</span>
+            <span className="icon-wrap"><MessageSquare size={18} /></span>
           </button>
         )}
       </div>
@@ -106,7 +107,7 @@ function ChatSidebar({ messages, currentUser, onSend, isOpen, onToggle }) {
               type="submit"
               disabled={!text.trim() || sending || !currentUser}
             >
-              ↑
+              <Send size={15} />
             </button>
           </form>
         </>

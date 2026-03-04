@@ -1,11 +1,12 @@
 import React from 'react';
+import { FileText } from 'lucide-react';
 import { getAuthorColor } from '../utils';
 
 function DocumentView({ contributions, roomTitle }) {
   if (contributions.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-icon">📄</div>
+        <div className="empty-icon"><FileText size={36} strokeWidth={1.2} /></div>
         <p>No content yet.</p>
         <p className="empty-sub">Switch to Chat view to start writing.</p>
       </div>

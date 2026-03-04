@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { Lock, Swords } from 'lucide-react';
 import { useUser } from '../App';
 import { APP_COLORS, stripHTML } from '../utils';
 import ChatView from '../components/ChatView';
@@ -956,7 +957,7 @@ function Room() {
       {view === 'collab' && (
         room?.is_locked ? (
           <footer className="room-footer locked-footer">
-            <span>🔒 This room is locked — no new contributions can be added.</span>
+            <span><Lock size={14} /> This room is locked — no new contributions can be added.</span>
           </footer>
         ) : (
           <footer className="room-footer">
@@ -1053,7 +1054,7 @@ function Room() {
       {/* Incoming challenge toast */}
       {incomingChallenge && (
         <div className="challenge-toast">
-          <span>⚔️ <strong>{incomingChallenge.fromUser?.name}</strong> challenges you to {GAME_LABELS[incomingChallenge.game] || incomingChallenge.game}!</span>
+          <span><Swords size={15} /> <strong>{incomingChallenge.fromUser?.name}</strong> challenges you to {GAME_LABELS[incomingChallenge.game] || incomingChallenge.game}!</span>
           <div className="challenge-toast-actions">
             <button className="btn-sm btn-primary" onClick={acceptChallenge}>Accept</button>
             <button className="btn-sm btn-secondary" onClick={declineChallenge}>Decline</button>

@@ -1,4 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import {
+  ArrowLeft, Link2, Check, Lock, Unlock, Users, Gamepad2,
+  Grid3X3, HelpCircle, ArrowUpDown, Moon, Sun, DoorClosed, PenOff
+} from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import ExportMenu from './ExportMenu';
 
@@ -59,13 +63,13 @@ function RoomHeader({
     <header className="room-header">
       <div className="room-header-left">
         <button className="theme-toggle" style={{ position: 'static', marginRight: 12 }} onClick={() => navigate('/')} title="Home">
-          ←
+          <ArrowLeft size={18} />
         </button>
         <div className="room-title-wrap">
           <img src="/assets/logo.svg" alt="Logo" className="room-logo-img" />
           <h1 className="room-title">{room?.title || 'Untitled Room'}</h1>
-          {!!room?.is_entry_locked && <span className="badge badge-locked">🚪 Closed</span>}
-          {!!room?.is_locked && <span className="badge badge-locked">✏️ Locked</span>}
+          {!!room?.is_entry_locked && <span className="badge badge-locked"><DoorClosed size={12} /> Closed</span>}
+          {!!room?.is_locked && <span className="badge badge-locked"><PenOff size={12} /> Locked</span>}
         </div>
       </div>
 
@@ -105,7 +109,7 @@ function RoomHeader({
             onClick={handleCopyLink}
             title={linkCopied ? 'Link copied!' : 'Copy Share Link'}
           >
-            {linkCopied ? '✓' : '🔗'}
+            {linkCopied ? <Check size={15} /> : <Link2 size={15} />}
           </button>
           <ExportMenu
             show={showExportMenu}
@@ -144,7 +148,7 @@ function RoomHeader({
             onClick={() => setShowContributors(true)}
             title="View contributors"
           >
-            👥 {members.filter(m => !m.removed_at).length}
+            <Users size={15} /> {members.filter(m => !m.removed_at).length}
           </button>
 
           {/* Games dropdown */}
@@ -154,7 +158,7 @@ function RoomHeader({
               onClick={() => setShowGameMenu(v => !v)}
               title="Games"
             >
-              🎮
+              <Gamepad2 size={17} />
             </button>
             {showGameMenu && (
               <div className="game-menu-dropdown">
@@ -162,7 +166,7 @@ function RoomHeader({
                   className={`game-menu-item${showWordle ? ' game-menu-item--active' : ''}`}
                   onClick={() => toggleGame(setShowWordle, [setShowHangman, setShowWordLadder])}
                 >
-                  <span className="game-menu-icon">🟩</span>
+                  <span className="game-menu-icon"><Grid3X3 size={15} /></span>
                   <span>Wordle</span>
                   {showWordle && <span className="game-menu-badge">open</span>}
                 </button>
@@ -170,7 +174,7 @@ function RoomHeader({
                   className={`game-menu-item${showHangman ? ' game-menu-item--active' : ''}`}
                   onClick={() => toggleGame(setShowHangman, [setShowWordle, setShowWordLadder])}
                 >
-                  <span className="game-menu-icon">🎭</span>
+                  <span className="game-menu-icon"><HelpCircle size={15} /></span>
                   <span>Hangman</span>
                   {showHangman && <span className="game-menu-badge">open</span>}
                 </button>
@@ -178,7 +182,7 @@ function RoomHeader({
                   className={`game-menu-item${showWordLadder ? ' game-menu-item--active' : ''}`}
                   onClick={() => toggleGame(setShowWordLadder, [setShowWordle, setShowHangman])}
                 >
-                  <span className="game-menu-icon">🪜</span>
+                  <span className="game-menu-icon"><ArrowUpDown size={15} /></span>
                   <span>Word Ladder</span>
                   {showWordLadder && <span className="game-menu-badge">open</span>}
                 </button>
@@ -194,19 +198,23 @@ function RoomHeader({
               onClick={handleEntryLockToggle}
               title={room?.is_entry_locked ? 'Room closed — click to open' : 'Room open — click to lock'}
             >
-              {room?.is_entry_locked ? '🔒 Closed' : '🔓 Room'}
+              {room?.is_entry_locked
+                ? <><Lock size={13} /> <span className="btn-long">Closed</span></>
+                : <><Unlock size={13} /> <span className="btn-long">Room</span></>}
             </button>
             <button
               className={`toggle-btn ${room?.is_locked ? 'active' : ''}`}
               onClick={handleContribLockToggle}
               title={room?.is_locked ? 'Posts locked — click to unlock' : 'Posts open — click to lock'}
             >
-              {room?.is_locked ? '🔒 Locked' : '🔓 Posts'}
+              {room?.is_locked
+                ? <><Lock size={13} /> <span className="btn-long">Locked</span></>
+                : <><Unlock size={13} /> <span className="btn-long">Posts</span></>}
             </button>
           </div>
         )}
         <button className="btn-icon" onClick={toggleTheme} title="Toggle theme">
-          {theme === 'light' ? '🌙' : '☀️'}
+          {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
         </button>
         <NotificationBell
           notifications={notifications}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Download, FileText, FileDown, FileType2, BookOpen } from 'lucide-react';
 
 function ExportMenu({
   show,
@@ -16,33 +17,33 @@ function ExportMenu({
         onClick={() => onToggle(!show)}
         title="Export Document"
       >
-        ↓
+        <Download size={15} />
       </button>
       {show && (
         <div className="export-dropdown">
           <button onClick={onExportTxt} className="export-item">
-            <span className="export-icon">📄</span>
+            <span className="export-icon"><FileText size={16} /></span>
             <div className="export-info">
               <span className="export-label">Plain Text</span>
               <span className="export-ext">.txt</span>
             </div>
           </button>
           <button onClick={onExportPdf} className="export-item">
-            <span className="export-icon">📕</span>
+            <span className="export-icon"><FileDown size={16} /></span>
             <div className="export-info">
               <span className="export-label">PDF Document</span>
               <span className="export-ext">.pdf</span>
             </div>
           </button>
           <button onClick={onExportDocx} className="export-item">
-            <span className="export-icon">📘</span>
+            <span className="export-icon"><FileType2 size={16} /></span>
             <div className="export-info">
               <span className="export-label">Word Document</span>
               <span className="export-ext">.docx</span>
             </div>
           </button>
           <button onClick={onExportEpub} className="export-item">
-            <span className="export-icon">📙</span>
+            <span className="export-icon"><BookOpen size={16} /></span>
             <div className="export-info">
               <span className="export-label">EPUB Book</span>
               <span className="export-ext">.epub</span>

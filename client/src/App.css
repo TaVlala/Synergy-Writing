@@ -751,9 +751,12 @@ body {
 }
 
 .feature-icon {
-  font-size: 1.6rem;
-  display: block;
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+  color: var(--primary);
+  opacity: 0.85;
 }
 
 .feature-title {
@@ -1649,8 +1652,12 @@ body {
 }
 
 .empty-icon {
-  font-size: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 14px;
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 .empty-state p {
@@ -2239,7 +2246,12 @@ body {
 }
 
 .prompt-icon {
-  font-size: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  opacity: 0.8;
+  margin-bottom: 4px;
 }
 
 .prompt-card h2 {

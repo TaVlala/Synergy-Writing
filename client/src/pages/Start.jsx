@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../App';
 import { APP_COLORS } from '../utils';
+import { Moon, Sun, ArrowLeft } from 'lucide-react';
 
 function ColorPicker({ selected, onChange }) {
   return (
@@ -83,10 +84,10 @@ function Start() {
   return (
     <div className="start-page">
       <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
-        {theme === 'light' ? '🌙' : '☀️'}
+        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
       </button>
 
-      <Link to="/" className="start-back">← Back</Link>
+      <Link to="/" className="start-back"><ArrowLeft size={15} /> Back</Link>
 
       <div className="start-content">
         {!user ? (

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Users, X } from 'lucide-react';
 import { formatTime } from '../utils';
 
 function ContributorsPanel({ members, isCreator, currentUser, onRemove, onClose }) {
@@ -12,11 +13,11 @@ function ContributorsPanel({ members, isCreator, currentUser, onRemove, onClose 
         {/* Header */}
         <div className="contributors-header">
           <div className="contributors-title">
-            <span className="contributors-icon">👥</span>
+            <span className="contributors-icon"><Users size={18} /></span>
             <h2>Contributors</h2>
             <span className="contributors-count">{active.length}</span>
           </div>
-          <button className="btn-icon" onClick={onClose} title="Close">✕</button>
+          <button className="btn-icon" onClick={onClose} title="Close"><X size={16} /></button>
         </div>
 
         <div className="contributors-body">

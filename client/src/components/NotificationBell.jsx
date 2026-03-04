@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Bell, PenLine, CornerDownLeft, MessageCircle } from 'lucide-react';
 import { formatTime } from '../utils';
 
 const TYPE_ICONS = {
-  new_contribution: '✍️',
-  reply: '↩️',
-  comment: '💬'
+  new_contribution: <PenLine size={14} />,
+  reply: <CornerDownLeft size={14} />,
+  comment: <MessageCircle size={14} />
 };
 
 function NotificationBell({ notifications, onMarkAllRead }) {
@@ -33,7 +34,7 @@ function NotificationBell({ notifications, onMarkAllRead }) {
         onClick={handleOpen}
         title="Notifications"
       >
-        🔔
+        <Bell size={17} />
         {unread > 0 && (
           <span className="notif-count">{unread > 99 ? '99+' : unread}</span>
         )}
@@ -55,7 +56,7 @@ function NotificationBell({ notifications, onMarkAllRead }) {
             <div className="notif-list">
               {notifications.slice(0, 25).map(n => (
                 <div key={n.id} className={`notif-item ${n.is_read ? '' : 'notif-item--unread'}`}>
-                  <span className="notif-icon">{TYPE_ICONS[n.type] || '🔔'}</span>
+                  <span className="notif-icon">{TYPE_ICONS[n.type] || <Bell size={14} />}</span>
                   <div className="notif-body">
                     <p className="notif-message">{n.message}</p>
                     <time className="notif-time">{formatTime(n.created_at)}</time>
