@@ -72,18 +72,18 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                     </span>
                     {isOwn && <span className="review-card-you">you</span>}
                     <span className="review-card-time">{formatTime(c.created_at)}</span>
+                    {isCreator && (
+                      <div className="review-card-actions">
+                        <button className="btn-approve" onClick={() => onApprove(c.id)}>
+                          <Check size={14} /> Approve
+                        </button>
+                        <button className="btn-reject" onClick={() => onReject(c.id)}>
+                          <X size={14} /> Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {renderContent(c.content)}
-                  {isCreator && (
-                    <div className="review-card-actions">
-                      <button className="btn-approve" onClick={() => onApprove(c.id)}>
-                        <Check size={14} /> Approve
-                      </button>
-                      <button className="btn-reject" onClick={() => onReject(c.id)}>
-                        <X size={14} /> Reject
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -171,13 +171,13 @@ function ReviewView({ contributions, currentUser, isCreator, onApprove, onReject
                       {c.author_name}
                     </span>
                     <span className="review-card-time">{formatTime(c.created_at)}</span>
+                    <div className="review-card-actions">
+                      <button className="btn-approve" onClick={() => onApprove(c.id)}>
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                    </div>
                   </div>
                   {renderContent(c.content)}
-                  <div className="review-card-actions">
-                    <button className="btn-approve" onClick={() => onApprove(c.id)}>
-                      <RotateCcw size={14} /> Restore
-                    </button>
-                  </div>
                 </div>
               );
             })}

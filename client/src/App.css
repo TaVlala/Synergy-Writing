@@ -634,17 +634,31 @@ body {
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 7px 11px;
+  padding: 8px 12px;
   font-size: 17px;
   cursor: pointer;
   box-shadow: var(--shadow);
-  z-index: 100;
-  transition: background .15s, box-shadow .15s;
+  z-index: 200;
+  transition: background .15s, box-shadow .2s, transform .15s, border-color .15s;
+  /* Moon icon: indigo tint in light mode */
+  color: #6366f1;
 }
 
 .theme-toggle:hover {
   background: var(--secondary-bg);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.25), var(--shadow-md);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Sun icon: warm amber in dark mode */
+[data-theme="dark"] .theme-toggle {
+  color: #f59e0b;
+}
+
+[data-theme="dark"] .theme-toggle:hover {
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4), var(--shadow-md);
+  border-color: rgba(245, 158, 11, 0.4);
 }
 
 /* ===================== LANDING PAGE ===================== */
@@ -1303,6 +1317,11 @@ body {
   min-width: 48px;
 }
 
+/* Centre nav tabs (Collab / Review / Document) get equal widths */
+.room-header-center .toggle-btn {
+  flex: 1;
+}
+
 .toggle-btn.active {
   background: var(--surface-raised);
   color: var(--primary);
@@ -1600,6 +1619,28 @@ body {
 .contribution-form:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(45, 212, 191, .15);
+}
+
+.form-nametag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 4px;
+}
+
+.form-nametag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--user-color);
+  flex-shrink: 0;
+}
+
+.form-nametag-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--user-color);
+  line-height: 1;
 }
 
 .contribution-input {
@@ -2553,10 +2594,9 @@ body {
 
 .review-card-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .btn-approve {
@@ -3549,20 +3589,21 @@ body {
   backdrop-filter: blur(4px);
   z-index: 600;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 62px 16px 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
 .wordle-panel {
-  width: 360px;
-  max-height: calc(100vh - 80px);
+  width: min(480px, 96vw);
+  height: calc(100vh - 40px);
+  max-height: 860px;
   overflow-y: auto;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 20px;
   box-shadow: var(--shadow-lg);
-  animation: slideInRight 0.2s ease;
+  animation: dropdownIn 0.2s ease;
   display: flex;
   flex-direction: column;
 }

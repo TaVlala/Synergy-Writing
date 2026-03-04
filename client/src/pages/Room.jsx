@@ -564,8 +564,7 @@ function Room() {
     approved.forEach(c => {
       const section = document.createElement('div');
       section.style.marginBottom = '12pt';
-      // Apply author color if requested
-      section.style.color = c.author_color || '#000';
+      section.style.color = '#000';
       section.innerHTML = c.content;
       container.appendChild(section);
     });
@@ -943,16 +942,6 @@ function Room() {
         )}
       </div>
 
-      {/* ── Typing indicator ── */}
-      {typingUsers.length > 0 && (
-        <div className="typing-bar">
-          <span className="typing-dots">
-            <span /><span /><span />
-          </span>
-          {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing…
-        </div>
-      )}
-
       {/* ── Input footer ── */}
       {view === 'collab' && (
         room?.is_locked ? (
@@ -962,9 +951,15 @@ function Room() {
         ) : (
           <footer className="room-footer">
             <form className="contribution-form" onSubmit={handleSubmit}>
+              {user && (
+                <div className="form-nametag" style={{ '--user-color': user.color || '#6366f1' }}>
+                  <span className="form-nametag-dot" />
+                  <span className="form-nametag-name">{user.name}</span>
+                </div>
+              )}
               <RichEditor
                 ref={editorRef}
-                placeholder={`Write something, ${user?.name || 'Contributor'}…`}
+                placeholder="Write something…"
                 otherCursors={otherCursors}
                 currentUserName={user?.name}
                 showCommentBubble={false}

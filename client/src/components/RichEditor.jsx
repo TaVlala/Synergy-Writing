@@ -89,7 +89,7 @@ const RichEditor = forwardRef(function RichEditor(
 
   const [linkPopover, setLinkPopover] = useState({ visible: false, value: '' });
   const [readonlyMenu, setReadonlyMenu] = useState({ visible: false, top: 0, left: 0 });
-  const [thesaurus, setThesaurus] = useState({ visible: false, word: '', synonyms: [], loading: false, pos: { top: 0, left: 0 } });
+  const [thesaurus, setThesaurus] = useState({ visible: false, word: '', synonyms: [], loading: false, pos: { top: 0, left: 0 }, selFrom: null, selTo: null });
 
   const CursorExtension = useMemo(() => {
     return Extension.create({
@@ -222,24 +222,21 @@ const RichEditor = forwardRef(function RichEditor(
     setLinkPopover({ visible: false, value: '' });
   };
 
-  const fetchSynonyms = async (word, pos) => {
+  const fetchSynonyms = async (word, pos, selFrom, selTo) => {
     if (!word) return;
     const clean = word.trim().toLowerCase();
 
     // Context-aware logic: extract surrounding sentence
     let contextStr = '';
     if (editor) {
-      const { from, to } = editor.state.selection;
       const doc = editor.state.doc;
-      // Get ~50 chars before and after for context
-      const start = Math.max(0, from - 50);
-      const end = Math.min(doc.content.size, to + 50);
+      const start = Math.max(0, selFrom - 50);
+      const end = Math.min(doc.content.size, selTo + 50);
       contextStr = doc.textBetween(start, end, ' ');
     }
 
-    setThesaurus({ visible: true, word: word.trim(), synonyms: [], loading: true, pos });
+    setThesaurus({ visible: true, word: clean, synonyms: [], loading: true, pos, selFrom, selTo });
     try {
-      // Datamuse: rel_syn = synonyms, ml = means-like (with context strings)
       const url = `https://api.datamuse.com/words?rel_syn=${encodeURIComponent(clean)}&max=40${contextStr ? `&ml=${encodeURIComponent(contextStr)}` : ''}`;
       const res = await fetch(url);
       const synData = await res.json();
@@ -259,13 +256,28 @@ const RichEditor = forwardRef(function RichEditor(
 
   const handleThesaurusClick = (e) => {
     e.preventDefault();
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    if (empty) return;
+
+    // Use Tiptap's selection (reliable, doesn't depend on window.getSelection)
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    const word = selectedText.trim();
+    if (!word) return;
+
+    // Trim the range to exclude leading/trailing whitespace so replacement is exact
+    const leadingSpaces = selectedText.length - selectedText.trimStart().length;
+    const trailingSpaces = selectedText.length - selectedText.trimEnd().length;
+    const trimmedFrom = from + leadingSpaces;
+    const trimmedTo = trailingSpaces > 0 ? to - trailingSpaces : to;
+
     const sel = window.getSelection();
-    if (!sel.isCollapsed) {
-      const word = sel.toString().trim();
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      // position relative to viewport
-      fetchSynonyms(word, { top: rect.bottom + 10, left: rect.left });
-    }
+    const rect = sel && !sel.isCollapsed ? sel.getRangeAt(0).getBoundingClientRect() : null;
+    const pos = rect
+      ? { top: rect.bottom + 10, left: rect.left }
+      : { top: 100, left: 100 };
+
+    fetchSynonyms(word, pos, trimmedFrom, trimmedTo);
   };
 
   if (!editor) return null;
@@ -304,8 +316,11 @@ const RichEditor = forwardRef(function RichEditor(
                     key={s}
                     className="synonym-btn"
                     onClick={() => {
-                      if (editable) {
-                        editor.chain().focus().insertContent(s).run();
+                      if (editable && thesaurus.selFrom !== null && thesaurus.selTo !== null) {
+                        editor.chain().focus()
+                          .deleteRange({ from: thesaurus.selFrom, to: thesaurus.selTo })
+                          .insertContentAt(thesaurus.selFrom, s)
+                          .run();
                       }
                       setThesaurus(prev => ({ ...prev, visible: false }));
                     }}

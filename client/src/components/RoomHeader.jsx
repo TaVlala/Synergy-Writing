@@ -213,8 +213,8 @@ function RoomHeader({
             </button>
           </div>
         )}
-        <button className="btn-icon" onClick={toggleTheme} title="Toggle theme">
-          {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+        <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
         </button>
         <NotificationBell
           notifications={notifications}
