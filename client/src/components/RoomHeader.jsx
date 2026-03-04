@@ -71,6 +71,26 @@ function RoomHeader({
           {!!room?.is_entry_locked && <span className="badge badge-locked"><DoorClosed size={12} /> Closed</span>}
           {!!room?.is_locked && <span className="badge badge-locked"><PenOff size={12} /> Locked</span>}
         </div>
+
+        {Array.isArray(onlineUsers) && onlineUsers.length > 0 && (
+          <div className="presence-avatars">
+            {onlineUsers.slice(0, 5).map(u => (
+              <span
+                key={u.userId}
+                className={`presence-avatar${u.userId === user?.id ? ' presence-avatar--self' : ''}`}
+                style={{ background: u.userColor }}
+                title={u.userId === user?.id ? `${u.userName || 'Unknown'} (you)` : u.userName || 'Unknown'}
+              >
+                {(u.userName || '?').charAt(0).toUpperCase()}
+              </span>
+            ))}
+            {onlineUsers.length > 5 && (
+              <span className="presence-overflow" title={`${onlineUsers.length - 5} more online`}>
+                +{onlineUsers.length - 5}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="room-header-center">
@@ -121,26 +141,6 @@ function RoomHeader({
             menuRef={exportMenuRef}
           />
         </div>
-
-        {Array.isArray(onlineUsers) && onlineUsers.length > 0 && (
-          <div className="presence-avatars">
-            {onlineUsers.slice(0, 5).map(u => (
-              <span
-                key={u.userId}
-                className={`presence-avatar${u.userId === user?.id ? ' presence-avatar--self' : ''}`}
-                style={{ background: u.userColor }}
-                title={u.userId === user?.id ? `${u.userName || 'Unknown'} (you)` : u.userName || 'Unknown'}
-              >
-                {(u.userName || '?').charAt(0).toUpperCase()}
-              </span>
-            ))}
-            {onlineUsers.length > 5 && (
-              <span className="presence-overflow" title={`${onlineUsers.length - 5} more online`}>
-                +{onlineUsers.length - 5}
-              </span>
-            )}
-          </div>
-        )}
 
         <div className="btn-group">
           <button
