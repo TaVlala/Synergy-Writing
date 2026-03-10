@@ -92,7 +92,7 @@ export function sanitizeRichHtml(html) {
       if (prop === 'text-decoration' && !/^(none|underline|line-through)$/i.test(value)) continue;
       if ((prop === 'color' || prop === 'background-color') && !(/^#([0-9a-f]{3}){1,2}$/i.test(value) || /^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(,\s*(0|1|0?\.\d+))?\s*\)$/.test(value))) continue;
 
-      out.push(${prop}: );
+      out.push(prop + ': ' + value);
     }
     return out.join('; ');
   };
