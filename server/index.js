@@ -10,7 +10,8 @@ const app = express();
 const server = http.createServer(app);
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
-const CORS_ORIGINS = isProd ? true : [
+
+const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:4173',
@@ -19,6 +20,17 @@ const CORS_ORIGINS = isProd ? true : [
   'http://0.0.0.0:5173',
   'http://0.0.0.0:5174'
 ];
+
+// In production, set CORS_ORIGINS to a comma-separated list of allowed frontend origins.
+// If unset, we default to allow-all to preserve existing behavior.
+const PROD_CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const CORS_ORIGINS = isProd
+  ? (PROD_CORS_ORIGINS.length ? PROD_CORS_ORIGINS : true)
+  : DEV_CORS_ORIGINS;
 
 const io = new Server(server, {
   cors: { origin: CORS_ORIGINS, methods: ['GET', 'POST', 'PATCH', 'DELETE'] }
@@ -31,6 +43,53 @@ io.on('connection', (socket) => {
 app.use(cors({ origin: CORS_ORIGINS }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+let sanitizeHtml = null;
+try {
+  sanitizeHtml = require('sanitize-html');
+} catch {
+  sanitizeHtml = null;
+}
+
+function sanitizeRichHtml(input) {
+  if (typeof input !== 'string') return '';
+  const raw = input.trim();
+  if (!raw) return '';
+  if (!sanitizeHtml) {
+    // Safe fallback: strip all tags (loses formatting but avoids XSS).
+    return raw.replace(/<[^>]*>/g, '');
+  }
+
+  return sanitizeHtml(raw, {
+    allowedTags: [
+      'p', 'br', 'div', 'span',
+      'strong', 'b', 'em', 'i', 'u', 's',
+      'h1', 'h2', 'h3', 'blockquote',
+      'ul', 'ol', 'li',
+      'a', 'img',
+      'code', 'pre'
+    ],
+    allowedAttributes: {
+      a: ['href', 'target', 'rel'],
+      img: ['src', 'alt', 'title'],
+      '*': ['style', 'class']
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowProtocolRelative: false,
+    enforceHtmlBoundary: true,
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }, true),
+    },
+    allowedStyles: {
+      '*': {
+        color: [/^#([0-9a-f]{3}){1,2}$/i, /^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(,\s*(0|1|0?\.\d+))?\s*\)$/],
+        'background-color': [/^#([0-9a-f]{3}){1,2}$/i, /^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(,\s*(0|1|0?\.\d+))?\s*\)$/],
+        'text-align': [/^(left|right|center|justify)$/],
+        'text-decoration': [/^(none|underline|line-through)$/],
+      },
+    },
+  });
+}
 
 // ============ HELPERS ============
 
@@ -198,6 +257,7 @@ app.get('/api/rooms/:id/contributions', (req, res) => {
     .sort((a, b) => a.created_at - b.created_at)
     .map(c => ({
       ...c,
+      content: sanitizeRichHtml(c.content),
       // Backwards-compat: old contributions without status are treated as approved
       status: c.status || 'approved',
       sort_order: c.sort_order ?? c.created_at,
@@ -212,7 +272,8 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
   if (room.is_locked) return res.status(403).json({ error: 'This room is locked' });
 
   const { author_id, author_name, author_color, content, parent_id } = req.body;
-  const textContent = content?.replace(/<[^>]*>/g, '').trim();
+  const sanitized = sanitizeRichHtml(content);
+  const textContent = sanitized.replace(/<[^>]*>/g, '').trim();
   if (!textContent || !author_id || !author_name) {
     return res.status(400).json({ error: 'author_id, author_name, and content are required' });
   }
@@ -229,7 +290,7 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
     author_id,
     author_name,
     author_color: author_color || '#6366f1',
-    content: content.trim(),
+    content: sanitized,
     parent_id: parent_id || null,
     status: 'pending',
     sort_order: null,
@@ -264,7 +325,8 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
 
 app.patch('/api/contributions/:id', (req, res) => {
   const { user_id, content } = req.body;
-  if (!content?.trim()) return res.status(400).json({ error: 'Content is required' });
+  const sanitized = sanitizeRichHtml(content);
+  if (!sanitized.trim()) return res.status(400).json({ error: 'Content is required' });
 
   const idx = store.contributions.findIndex(c => c.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
@@ -276,7 +338,7 @@ app.patch('/api/contributions/:id', (req, res) => {
 
   const wasApproved = contribution.status === 'approved';
 
-  contribution.content = content.trim();
+  contribution.content = sanitized;
   contribution.edited_at = Date.now();
   if (wasApproved) {
     contribution.status = 'pending';
@@ -424,7 +486,7 @@ app.post('/api/contributions/:id/comments', (req, res) => {
     contribution_id: req.params.id,
     author_id,
     author_name,
-    content: content.trim(),
+    content: sanitized,
     parent_id: parent_id || null,
     inline_id: inline_id || null,
     created_at: Date.now()
@@ -449,7 +511,7 @@ app.post('/api/contributions/:id/comments', (req, res) => {
 
 // ============ REACTIONS ============
 
-const ALLOWED_EMOJIS = ['👍', '❤️', '😄', '🔥', '✨'];
+const ALLOWED_EMOJIS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F604}', '\u{1F525}', '\u2728'];
 
 app.post('/api/contributions/:id/reactions', (req, res) => {
   const { user_id, emoji } = req.body;
@@ -500,7 +562,7 @@ app.post('/api/rooms/:id/chat', (req, res) => {
     author_id,
     author_name,
     author_color: author_color || '#6366f1',
-    content: content.trim(),
+    content: sanitized,
     created_at: Date.now()
   };
   store.chat_messages.push(message);
@@ -649,7 +711,8 @@ app.post('/api/rooms/:id/export/epub', async (req, res) => {
     }
     const epubGen = require('epub-gen-memory');
     const fn = epubGen.default || epubGen;
-    const buffer = await fn({ title, author: 'Penwove Contributors', publisher: 'Penwove' }, chapters);
+    const safeChapters = chapters.map(ch => ({ ...ch, content: sanitizeRichHtml(ch.content) }));
+    const buffer = await fn({ title, author: 'Penwove Contributors', publisher: 'Penwove' }, safeChapters);
     const safeTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     res.setHeader('Content-Type', 'application/epub+zip');
     res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.epub"`);

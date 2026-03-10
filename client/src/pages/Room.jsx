@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { Lock, Swords } from 'lucide-react';
 import { useUser } from '../App';
-import { APP_COLORS, stripHTML } from '../utils';
+import { APP_COLORS, stripHTML, sanitizeRichHtml } from '../utils';
 import ChatView from '../components/ChatView';
 import DocumentView from '../components/DocumentView';
 import ReviewView from '../components/ReviewView';
@@ -565,7 +565,7 @@ function Room() {
       const section = document.createElement('div');
       section.style.marginBottom = '12pt';
       section.style.color = '#000';
-      section.innerHTML = c.content;
+      section.innerHTML = sanitizeRichHtml(c.content);
       container.appendChild(section);
     });
 
@@ -610,7 +610,7 @@ function Room() {
     approved.forEach(c => {
       // Basic HTML to docx conversion logic
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = c.content;
+      tempDiv.innerHTML = sanitizeRichHtml(c.content);
 
       const runs = [];
       const authorColor = (c.author_color || '#000000').replace('#', '');
@@ -657,7 +657,7 @@ function Room() {
 
     // EPUB uses server-side generation. Preserve HTML and add author colors.
     const bodyHtml = approved.map(c =>
-      `<div style="color: ${c.author_color || '#000'}; margin-bottom: 1em;">${c.content}</div>`
+      `<div style="color: ${c.author_color || '#000'}; margin-bottom: 1em;">${sanitizeRichHtml(c.content)}</div>`
     ).join('\n');
     const chapters = [{ title, content: bodyHtml || '<p> </p>' }];
 

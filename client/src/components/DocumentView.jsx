@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText } from 'lucide-react';
-import { getAuthorColor } from '../utils';
+import { getAuthorColor, sanitizeRichHtml } from '../utils';
 
 function DocumentView({ contributions, roomTitle }) {
   if (contributions.length === 0) {
@@ -30,7 +30,7 @@ function DocumentView({ contributions, roomTitle }) {
       <div className="document-body">
         {contributions.map((c) => (
           /<[a-z][\s\S]*>/i.test(c.content)
-            ? <div key={c.id} className="document-paragraph rich-content" dangerouslySetInnerHTML={{ __html: c.content }} />
+            ? <div key={c.id} className="document-paragraph rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(c.content) }} />
             : <p key={c.id} className="document-paragraph" style={{ whiteSpace: 'pre-wrap' }}>{c.content}</p>
         ))}
       </div>
