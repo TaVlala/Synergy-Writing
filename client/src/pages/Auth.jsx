@@ -25,7 +25,7 @@ function Auth() {
   const { theme, toggleTheme, loginWithPassword, registerWithPassword } = useUser();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -79,9 +79,7 @@ function Auth() {
           </button>
         </div>
 
-        <h2 className="landing-section-title">
-          {mode === 'login' ? 'Welcome back' : 'Create your account'}
-        </h2>
+        <h2 className="landing-section-title">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
         <p className="landing-section-sub">
           {mode === 'login'
             ? 'Login to join rooms and keep your identity consistent.'
@@ -133,14 +131,16 @@ function Auth() {
             type="submit"
             disabled={loading || !username.trim() || !password}
           >
-            {loading ? (mode === 'login' ? 'Logging in…' : 'Creating…') : (mode === 'login' ? 'Login ?' : 'Create account ?')}
+            {loading
+              ? (mode === 'login' ? 'Logging in...' : 'Creating...')
+              : (mode === 'login' ? 'Login ->' : 'Create account ->')}
           </button>
         </form>
 
         {error && <p className="error-text">{error}</p>}
 
         <p className="muted" style={{ marginTop: 14, textAlign: 'center' }}>
-          Passwords are stored hashed server-side. In production, set `JWT_SECRET`.
+          In production, set JWT_SECRET.
         </p>
       </div>
     </div>

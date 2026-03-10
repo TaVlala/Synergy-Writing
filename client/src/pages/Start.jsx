@@ -47,7 +47,7 @@ function Start() {
     try {
       const res = await apiFetch('/api/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim() || null, creator_id: user.id })
       });
       if (!res.ok) throw new Error('Failed to create room');
@@ -100,7 +100,7 @@ function Start() {
                 maxLength={100}
               />
               <button className="btn btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Creating…' : '+ Create New Room'}
+                {loading ? 'Creating...' : '+ Create New Room'}
               </button>
             </form>
           </div>
@@ -117,7 +117,7 @@ function Start() {
                 onChange={e => setJoinId(e.target.value)}
               />
               <button className="btn btn-secondary" type="submit" disabled={!joinId.trim()}>
-                Join Room ?
+                Join Room ->
               </button>
             </form>
           </div>
