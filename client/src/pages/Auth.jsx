@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Moon, Sun, ArrowLeft } from 'lucide-react';
 import { useUser } from '../App';
 import { APP_COLORS } from '../utils';
@@ -24,14 +24,21 @@ function ColorPicker({ selected, onChange }) {
 function Auth() {
   const { theme, toggleTheme, loginWithPassword, registerWithPassword } = useUser();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [mode, setMode] = useState('login');
+  const urlMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
+
+  const [mode, setMode] = useState(urlMode);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [color, setColor] = useState(APP_COLORS[5]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setMode(urlMode);
+  }, [urlMode]);
 
   const onSubmit = async (e) => {
     e.preventDefault();

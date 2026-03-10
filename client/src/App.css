@@ -807,6 +807,86 @@ body {
   opacity: 0.6;
 }
 
+/* ===================== TOP RIGHT CONTROLS ===================== */
+
+.top-right-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 210;
+}
+
+.top-right-controls .theme-toggle {
+  position: static;
+  top: auto;
+  right: auto;
+}
+
+.landing-auth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-btn {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+/* ===================== SEGMENTED CONTROL ===================== */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-sm);
+  gap: 4px;
+}
+
+.segmented-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.segmented-btn:hover {
+  color: var(--text);
+  background: rgba(13, 148, 136, 0.08);
+}
+
+.segmented-btn.active {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.segmented-btn:active {
+  transform: translateY(1px);
+}
+
+.segmented-btn:focus-visible {
+  outline: 3px solid rgba(13, 148, 136, 0.35);
+  outline-offset: 2px;
+}
+
 /* ===================== START PAGE ===================== */
 
 .start-page {

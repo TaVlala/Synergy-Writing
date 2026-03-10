@@ -37,15 +37,30 @@ const FEATURES = [
 ];
 
 function Home() {
-  const { theme, toggleTheme } = useUser();
+  const { user, logout, theme, toggleTheme } = useUser();
   const navigate = useNavigate();
 
   return (
     <div className="landing-page">
-      <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
-        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-      </button>
+      <div className="top-right-controls">
+        <div className="landing-auth">
+          {!user ? (
+            <>
+              <button className="btn btn-secondary auth-btn" onClick={() => navigate('/auth')}>Login</button>
+              <button className="btn btn-primary auth-btn" onClick={() => navigate('/auth?mode=register')}>Sign up</button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-secondary auth-btn" onClick={() => navigate('/start')}>Dashboard</button>
+              <button className="btn btn-secondary auth-btn" onClick={logout}>Logout</button>
+            </>
+          )}
+        </div>
 
+        <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+      </div>
       {/* ── HERO ── */}
       <section className="landing-hero">
         <img src="/assets/logo.svg" alt="Penwove" className="landing-logo" />
