@@ -4,12 +4,19 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { store, save } = require('./db');
 
 const app = express();
 const server = http.createServer(app);
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+if (isProd && !process.env.JWT_SECRET) {
+  console.warn('[auth] JWT_SECRET is not set in production; tokens are insecure.');
+}
 
 const DEV_CORS_ORIGINS = [
   'http://localhost:5173',
@@ -34,6 +41,20 @@ const CORS_ORIGINS = isProd
 
 const io = new Server(server, {
   cors: { origin: CORS_ORIGINS, methods: ['GET', 'POST', 'PATCH', 'DELETE'] }
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('unauthorized'));
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user = store.users.find(u => u.id === payload.sub);
+    if (!user) return next(new Error('unauthorized'));
+    socket.user = user;
+    next();
+  } catch {
+    next(new Error('unauthorized'));
+  }
 });
 
 io.on('connection', (socket) => {
@@ -109,28 +130,112 @@ function createNotification(userId, roomId, type, message) {
   io.to(`user_${userId}`).emit('notification', notif);
 }
 
-// ============ USERS ============
+// ============ AUTH ============
 
-app.post('/api/users', (req, res) => {
-  const { name, id, color } = req.body;
-  if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+function getPublicUser(u) {
+  return { id: u.id, username: u.username, name: u.name, color: u.color, created_at: u.created_at };
+}
 
-  const trimmedName = name.trim();
+function signToken(userId) {
+  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '30d' });
+}
 
-  if (id) {
-    const idx = store.users.findIndex(u => u.id === id);
-    if (idx !== -1) {
-      store.users[idx].name = trimmedName;
-      if (color) store.users[idx].color = color;
-      save();
-      return res.json(store.users[idx]);
-    }
+function authRequired(req, res, next) {
+  const header = req.headers.authorization || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const payload = jwt.verify(match[1], JWT_SECRET);
+    const user = store.users.find(u => u.id === payload.sub);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = user;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
+}
 
-  const user = { id: id || uuidv4(), name: trimmedName, color: color || '#6366f1', created_at: Date.now() };
+// All /api routes require auth except /api/auth/*
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/')) return next();
+  return authRequired(req, res, next);
+});
+
+// Prevent trivial ID spoofing: if a body/query includes a user id, it must match the token.
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/')) return next();
+  const tokenUserId = req.user?.id;
+  const body = req.body || {};
+  const query = req.query || {};
+  const candidateIds = [body.user_id, body.creator_id, body.author_id, query.user_id].filter(Boolean);
+  if (candidateIds.some(id => id !== tokenUserId)) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  next();
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, name, color } = req.body || {};
+  const u = String(username || '').trim().toLowerCase();
+  const p = String(password || '');
+  const displayName = String(name || u).trim();
+  if (!/^[a-z0-9_]{3,32}$/.test(u)) {
+    return res.status(400).json({ error: 'username must be 3-32 chars (a-z, 0-9, _)' });
+  }
+  if (p.length < 8) {
+    return res.status(400).json({ error: 'password must be at least 8 characters' });
+  }
+  if (!displayName) return res.status(400).json({ error: 'name is required' });
+  if (store.users.some(x => x.username === u)) {
+    return res.status(409).json({ error: 'Username already exists' });
+  }
+  const password_hash = bcrypt.hashSync(p, 10);
+  const user = {
+    id: uuidv4(),
+    username: u,
+    name: displayName.slice(0, 50),
+    color: (color || '#6366f1'),
+    password_hash,
+    created_at: Date.now()
+  };
   store.users.push(user);
   save();
-  res.json(user);
+  const token = signToken(user.id);
+  res.json({ token, user: getPublicUser(user) });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  const u = String(username || '').trim().toLowerCase();
+  const p = String(password || '');
+  const user = store.users.find(x => x.username === u);
+  if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
+  const ok = bcrypt.compareSync(p, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = signToken(user.id);
+  res.json({ token, user: getPublicUser(user) });
+});
+
+app.get('/api/auth/me', authRequired, (req, res) => {
+  res.json({ user: getPublicUser(req.user) });
+});
+
+app.patch('/api/users/me', (req, res) => {
+  const { name, color } = req.body || {};
+  if (name !== undefined) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return res.status(400).json({ error: 'Name is required' });
+    req.user.name = trimmed.slice(0, 50);
+  }
+  if (color !== undefined) req.user.color = String(color || '').trim() || req.user.color;
+  save();
+  res.json(getPublicUser(req.user));
+});
+
+// ============ USERS ============
+
+app.post('/api/users', (_req, res) => {
+  res.status(410).json({ error: 'Use /api/auth/register or /api/auth/login' });
 });
 
 // ============ ROOMS ============
@@ -174,8 +279,10 @@ app.patch('/api/rooms/:id', (req, res) => {
 
 // Join a room — register/update membership, enforce entry lock
 app.post('/api/rooms/:id/join', (req, res) => {
-  const { user_id, user_name, user_color } = req.body;
-  if (!user_id || !user_name) return res.status(400).json({ error: 'user_id and user_name required' });
+  const { user_id } = req.body;
+  const user_name = req.user.name;
+  const user_color = req.user.color;
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
   const room = store.rooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).json({ error: 'Room not found' });
@@ -271,7 +378,9 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.is_locked) return res.status(403).json({ error: 'This room is locked' });
 
-  const { author_id, author_name, author_color, content, parent_id } = req.body;
+  const { author_id, content, parent_id } = req.body;
+  const author_name = req.user.name;
+  const author_color = req.user.color;
   const sanitized = sanitizeRichHtml(content);
   const textContent = sanitized.replace(/<[^>]*>/g, '').trim();
   if (!textContent || !author_id || !author_name) {
@@ -290,7 +399,7 @@ app.post('/api/rooms/:id/contributions', (req, res) => {
     author_id,
     author_name,
     author_color: author_color || '#6366f1',
-    content: sanitized,
+    content: content.trim(),
     parent_id: parent_id || null,
     status: 'pending',
     sort_order: null,
@@ -473,7 +582,8 @@ app.get('/api/contributions/:id/comments', (req, res) => {
 });
 
 app.post('/api/contributions/:id/comments', (req, res) => {
-  const { author_id, author_name, content, parent_id, inline_id } = req.body;
+  const { author_id, content, parent_id, inline_id } = req.body;
+  const author_name = req.user.name;
   if (!content?.trim() || !author_id || !author_name) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -486,7 +596,7 @@ app.post('/api/contributions/:id/comments', (req, res) => {
     contribution_id: req.params.id,
     author_id,
     author_name,
-    content: sanitized,
+    content: content.trim(),
     parent_id: parent_id || null,
     inline_id: inline_id || null,
     created_at: Date.now()
@@ -551,9 +661,11 @@ app.post('/api/rooms/:id/chat', (req, res) => {
   const room = store.rooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
-  const { author_id, author_name, author_color, content } = req.body;
-  if (!content?.trim() || !author_id || !author_name) {
-    return res.status(400).json({ error: 'author_id, author_name, and content are required' });
+  const { author_id, content } = req.body;
+  const author_name = req.user.name;
+  const author_color = req.user.color;
+  if (!content?.trim() || !author_id) {
+    return res.status(400).json({ error: 'author_id and content are required' });
   }
 
   const message = {
@@ -562,7 +674,7 @@ app.post('/api/rooms/:id/chat', (req, res) => {
     author_id,
     author_name,
     author_color: author_color || '#6366f1',
-    content: sanitized,
+    content: content.trim(),
     created_at: Date.now()
   };
   store.chat_messages.push(message);
@@ -616,7 +728,8 @@ function getOnlineUsers(roomId) {
 
 io.on('connection', (socket) => {
   socket.on('join_room', (roomId) => socket.join(roomId));
-  socket.on('join_user', (userId) => {
+  socket.on('join_user', () => {
+    const userId = socket.user.id;
     socket.join(`user_${userId}`);
     // Deliver any pending game challenges for this user
     if (pendingChallenges[userId]?.length) {
@@ -625,7 +738,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('user_online', ({ roomId, userId, userName, userColor }) => {
+  socket.on('user_online', ({ roomId }) => {
+    const { id: userId, name: userName, color: userColor } = socket.user;
     presence[socket.id] = { userId, roomId, userName, userColor };
     io.to(roomId).emit('presence_update', getOnlineUsers(roomId));
   });
@@ -638,12 +752,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('typing', ({ roomId, userName }) => {
-    socket.to(roomId).emit('user_typing', { userName });
+  socket.on('typing', ({ roomId }) => {
+    socket.to(roomId).emit('user_typing', { userName: socket.user.name });
   });
 
-  socket.on('cursor_update', ({ roomId, userId, userName, userColor, position }) => {
-    socket.to(roomId).emit('cursor_update', { userId, userName, userColor, position });
+  socket.on('cursor_update', ({ roomId, position }) => {
+    socket.to(roomId).emit('cursor_update', {
+      userId: socket.user.id,
+      userName: socket.user.name,
+      userColor: socket.user.color,
+      position,
+    });
   });
 
   socket.on('disconnect', () => {
@@ -655,7 +774,8 @@ io.on('connection', (socket) => {
   });
 
   // ── Game challenge events ──────────────────────────────────────────────
-  socket.on('game:challenge', ({ toUserId, game, seed, fromUser, challengeId, customWord }) => {
+  socket.on('game:challenge', ({ toUserId, game, seed, challengeId, customWord }) => {
+    const fromUser = { id: socket.user.id, name: socket.user.name, color: socket.user.color };
     const challenge = { challengeId, game, seed, fromUser, customWord };
     activeGameChallenges[challengeId] = challenge;
     const isOnline = Object.values(presence).some(p => p.userId === toUserId);
@@ -667,7 +787,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('game:challenge:respond', ({ challengeId, accepted, fromUserId, respondingUser }) => {
+  socket.on('game:challenge:respond', ({ challengeId, accepted, fromUserId }) => {
+    const respondingUser = { id: socket.user.id, name: socket.user.name, color: socket.user.color };
     const challenge = activeGameChallenges[challengeId];
     delete activeGameChallenges[challengeId];
     if (accepted) {

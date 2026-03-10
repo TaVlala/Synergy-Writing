@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { Lock, Swords } from 'lucide-react';
 import { useUser } from '../App';
@@ -11,7 +11,6 @@ import NotificationBell from '../components/NotificationBell';
 import RichEditor from '../components/RichEditor';
 import CommentSection from '../components/CommentSection';
 import RoomHeader from '../components/RoomHeader';
-import JoinRoomForm from '../components/JoinRoomForm';
 import SidebarComponent from '../components/SidebarComponent';
 
 // Lazy load heavy/non-critical components
@@ -23,8 +22,10 @@ const WordLadder = React.lazy(() => import('../components/WordLadder'));
 
 function Room() {
   const { id: roomId } = useParams();
-  const { user, login, theme, toggleTheme } = useUser();
+  const { user, apiFetch, authToken, theme, toggleTheme } = useUser();
   const navigate = useNavigate();
+
+
 
   const [room, setRoom] = useState(null);
   const [contributions, setContributions] = useState([]);
@@ -69,7 +70,9 @@ function Room() {
 
   // Socket.io setup
   useEffect(() => {
+    if (!authToken) return;
     const socket = io({
+      auth: { token: authToken },
       transports: ['polling', 'websocket'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000
@@ -249,12 +252,12 @@ function Room() {
     setLoading(true);
     setError('');
     Promise.all([
-      fetch(`/api/rooms/${roomId}`).then(r => {
+      apiFetch(`/api/rooms/${roomId}`).then(r => {
         if (!r.ok) throw new Error(`Room fetch failed: ${r.status}`);
         return r.json();
       }),
-      fetch(`/api/rooms/${roomId}/contributions`).then(r => r.json()),
-      fetch(`/api/rooms/${roomId}/chat`).then(r => r.json())
+      apiFetch(`/api/rooms/${roomId}/contributions`).then(r => r.json()),
+      apiFetch(`/api/rooms/${roomId}/chat`).then(r => r.json())
     ])
       .then(([roomData, contribData, chatData]) => {
         setRoom(roomData);
@@ -273,7 +276,7 @@ function Room() {
     if (!user || !roomId) return;
     const joinAndLoadMembers = async () => {
       try {
-        const joinRes = await fetch(`/api/rooms/${roomId}/join`, {
+        const joinRes = await apiFetch(`/api/rooms/${roomId}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.id, user_name: user.name, user_color: user.color })
@@ -287,7 +290,7 @@ function Room() {
       } catch { /* ignore network errors */ }
 
       try {
-        const membersRes = await fetch(`/api/rooms/${roomId}/members`);
+        const membersRes = await apiFetch(`/api/rooms/${roomId}/members`);
         const membersData = await membersRes.json();
         setMembers(membersData);
       } catch { /* ignore */ }
@@ -298,7 +301,7 @@ function Room() {
   // Load notifications
   useEffect(() => {
     if (!user) return;
-    fetch(`/api/notifications?user_id=${user.id}`)
+    apiFetch(`/api/notifications?user_id=${user.id}`)
       .then(r => r.json())
       .then(setNotifications)
       .catch(() => { });
@@ -327,7 +330,7 @@ function Room() {
     if (editorEmpty || !user || submitting || room?.is_locked) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/rooms/${roomId}/contributions`, {
+      const res = await apiFetch(`/api/rooms/${roomId}/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -368,7 +371,7 @@ function Room() {
   };
 
   const handleEditContribution = async (id, newContent) => {
-    const res = await fetch(`/api/contributions/${id}`, {
+    const res = await apiFetch(`/api/contributions/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, content: newContent })
@@ -380,7 +383,7 @@ function Room() {
   };
 
   const handlePinContribution = async (id, pinned) => {
-    const res = await fetch(`/api/rooms/${roomId}/contributions/${id}/pin`, {
+    const res = await apiFetch(`/api/rooms/${roomId}/contributions/${id}/pin`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, pinned })
@@ -392,7 +395,7 @@ function Room() {
   };
 
   const handleApproveContribution = async (id) => {
-    await fetch(`/api/contributions/${id}/status`, {
+    await apiFetch(`/api/contributions/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, status: 'approved' })
@@ -400,7 +403,7 @@ function Room() {
   };
 
   const handleRejectContribution = async (id) => {
-    await fetch(`/api/contributions/${id}/status`, {
+    await apiFetch(`/api/contributions/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, status: 'rejected' })
@@ -408,7 +411,7 @@ function Room() {
   };
 
   const handleReorderContributions = async (orderedIds) => {
-    await fetch(`/api/rooms/${roomId}/reorder`, {
+    await apiFetch(`/api/rooms/${roomId}/reorder`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, order: orderedIds })
@@ -419,7 +422,7 @@ function Room() {
     setConfirmDialog({
       message: 'Delete this contribution?',
       onConfirm: async () => {
-        await fetch(`/api/contributions/${id}`, {
+        await apiFetch(`/api/contributions/${id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.id })
@@ -430,7 +433,7 @@ function Room() {
 
   const handleReaction = async (contributionId, emoji) => {
     if (!user) return;
-    await fetch(`/api/contributions/${contributionId}/reactions`, {
+    await apiFetch(`/api/contributions/${contributionId}/reactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, emoji })
@@ -439,7 +442,7 @@ function Room() {
 
   const handleAddComment = async (contributionId, content, parentId = null, inlineId = null) => {
     if (!user || !content.trim()) return;
-    const res = await fetch(`/api/contributions/${contributionId}/comments`, {
+    const res = await apiFetch(`/api/contributions/${contributionId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -454,7 +457,7 @@ function Room() {
   };
 
   const handleLoadComments = async (contributionId) => {
-    const res = await fetch(`/api/contributions/${contributionId}/comments`);
+    const res = await apiFetch(`/api/contributions/${contributionId}/comments`);
     const comments = await res.json();
     setContributions(prev =>
       prev.map(c => c.id === contributionId ? { ...c, comments } : c)
@@ -464,7 +467,7 @@ function Room() {
 
   const handleSendChat = async (content) => {
     if (!user) return;
-    await fetch(`/api/rooms/${roomId}/chat`, {
+    await apiFetch(`/api/rooms/${roomId}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -478,7 +481,7 @@ function Room() {
 
   const handleContribLockToggle = async () => {
     if (!user || !room) return;
-    await fetch(`/api/rooms/${roomId}`, {
+    await apiFetch(`/api/rooms/${roomId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, is_locked: !room.is_locked })
@@ -487,7 +490,7 @@ function Room() {
 
   const handleEntryLockToggle = async () => {
     if (!user || !room) return;
-    await fetch(`/api/rooms/${roomId}`, {
+    await apiFetch(`/api/rooms/${roomId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id, is_entry_locked: !room.is_entry_locked })
@@ -499,12 +502,12 @@ function Room() {
     setConfirmDialog({
       message: 'Remove this contributor from the room?',
       onConfirm: async () => {
-        await fetch(`/api/rooms/${roomId}/members/${targetUserId}`, {
+        await apiFetch(`/api/rooms/${roomId}/members/${targetUserId}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.id })
         });
-        const res = await fetch(`/api/rooms/${roomId}/members`);
+        const res = await apiFetch(`/api/rooms/${roomId}/members`);
         setMembers(await res.json());
       }
     });
@@ -663,7 +666,7 @@ function Room() {
 
     try {
       const { saveAs } = await import('file-saver');
-      const res = await fetch(`/api/rooms/${roomId}/export/epub`, {
+      const res = await apiFetch(`/api/rooms/${roomId}/export/epub`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, chapters }),
@@ -773,7 +776,7 @@ function Room() {
 
   const markAllNotificationsRead = async () => {
     if (!user) return;
-    await fetch('/api/notifications/read-all', {
+    await apiFetch('/api/notifications/read-all', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: user.id })
@@ -781,22 +784,9 @@ function Room() {
     setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
   };
 
-  // Name prompt for unauthenticated users visiting a room link
-  if (!user) {
-    return (
-      <JoinRoomForm
-        room={room}
-        nameInput={nameInput}
-        setNameInput={setNameInput}
-        joinColor={joinColor}
-        setJoinColor={setJoinColor}
-        onLogin={login}
-        navigate={navigate}
-      />
-    );
-  }
+  if (!user) return <Navigate to="/auth" replace />;
 
-  if (loading) {
+if (loading) {
     return <div className="loading-screen"><div className="spinner" /></div>;
   }
 
