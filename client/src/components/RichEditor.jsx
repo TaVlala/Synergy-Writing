@@ -98,6 +98,7 @@ const RichEditor = forwardRef(function RichEditor(
     pos: { top: 0, left: 0 },
     selFrom: null,
     selTo: null,
+    message: '',
   });
 
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -244,7 +245,7 @@ const RichEditor = forwardRef(function RichEditor(
     const clean = word.trim().toLowerCase();
     let contextStr = '';
 
-    if (editor) {
+    if (editor && selFrom !== null && selTo !== null) {
       const doc = editor.state.doc;
       const start = Math.max(0, selFrom - 50);
       const end = Math.min(doc.content.size, selTo + 50);
@@ -254,30 +255,34 @@ const RichEditor = forwardRef(function RichEditor(
     thesaurusAbortRef.current?.abort();
     const controller = new AbortController();
     thesaurusAbortRef.current = controller;
-    setThesaurus({ visible: true, word: clean, synonyms: [], loading: true, pos, selFrom, selTo });
+    setThesaurus({ visible: true, word: clean, synonyms: [], loading: true, pos, selFrom, selTo, message: '' });
 
     try {
-      const url = `https://api.datamuse.com/words?rel_syn=${encodeURIComponent(clean)}&max=40${contextStr ? `&ml=${encodeURIComponent(contextStr)}` : ''}`;
-      const response = await fetch(url, { signal: controller.signal });
-      const data = await response.json();
-      const seen = new Set();
-      const synonyms = [];
+      const query = new URLSearchParams({ word: clean });
+      if (contextStr) query.set('context', contextStr);
+      const response = await fetch(`/api/thesaurus?${query.toString()}`, { signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
 
-      data.forEach(({ word: candidate }) => {
-        if (candidate && candidate !== clean && !seen.has(candidate)) {
-          seen.add(candidate);
-          synonyms.push(candidate);
-        }
-      });
+      if (!response.ok) {
+        throw new Error(data?.error || 'Thesaurus lookup failed');
+      }
+
+      const synonyms = Array.isArray(data.synonyms) ? data.synonyms.slice(0, 30) : [];
 
       setThesaurus(current => ({
         ...current,
-        synonyms: synonyms.slice(0, 30),
+        synonyms,
         loading: false,
+        message: '',
       }));
     } catch (err) {
       if (err.name === 'AbortError') return;
-      setThesaurus(current => ({ ...current, synonyms: [], loading: false }));
+      setThesaurus(current => ({
+        ...current,
+        synonyms: [],
+        loading: false,
+        message: 'Could not load synonyms right now.',
+      }));
     }
   };
 
@@ -288,23 +293,31 @@ const RichEditor = forwardRef(function RichEditor(
 
     const liveSelection = editor.state.selection;
     const rememberedSelection = lastTextSelectionRef.current;
+    const browserSelection = window.getSelection();
+    const browserSelectedText = browserSelection?.toString() || '';
+    const triggerRect = event.currentTarget.getBoundingClientRect();
     const from = !liveSelection.empty ? liveSelection.from : rememberedSelection?.from;
     const to = !liveSelection.empty ? liveSelection.to : rememberedSelection?.to;
     const selectedText = !liveSelection.empty
       ? editor.state.doc.textBetween(liveSelection.from, liveSelection.to, ' ')
-      : rememberedSelection?.selectedText || '';
+      : rememberedSelection?.selectedText || browserSelectedText;
     const word = selectedText.trim();
+    const rect = browserSelection && !browserSelection.isCollapsed && browserSelection.rangeCount > 0
+      ? browserSelection.getRangeAt(0).getBoundingClientRect()
+      : null;
+    const pos = rect
+      ? { top: rect.bottom + 10, left: rect.left }
+      : { top: triggerRect.bottom + 10, left: triggerRect.left };
 
-    if (!from || !to || !word) return;
+    if (!word) {
+      setThesaurus({ visible: true, word: '', synonyms: [], loading: false, pos, selFrom: null, selTo: null, message: 'Select a word first.' });
+      return;
+    }
 
     const leadingSpaces = selectedText.length - selectedText.trimStart().length;
     const trailingSpaces = selectedText.length - selectedText.trimEnd().length;
-    const trimmedFrom = from + leadingSpaces;
-    const trimmedTo = trailingSpaces > 0 ? to - trailingSpaces : to;
-
-    const selection = window.getSelection();
-    const rect = selection && !selection.isCollapsed ? selection.getRangeAt(0).getBoundingClientRect() : null;
-    const pos = rect ? { top: rect.bottom + 10, left: rect.left } : { top: 100, left: 100 };
+    const trimmedFrom = from !== undefined && from !== null ? from + leadingSpaces : null;
+    const trimmedTo = to !== undefined && to !== null ? (trailingSpaces > 0 ? to - trailingSpaces : to) : null;
 
     fetchSynonyms(word, pos, trimmedFrom, trimmedTo);
   };
@@ -335,27 +348,29 @@ const RichEditor = forwardRef(function RichEditor(
       {thesaurus.visible && (
         <div className="thesaurus-popover" style={{ position: 'fixed', top: thesaurus.pos.top, left: thesaurus.pos.left, zIndex: 1000 }}>
           <div className="thesaurus-header">
-            <strong>{thesaurus.word}</strong>
+            <strong>{thesaurus.word || 'Thesaurus'}</strong>
             <button type="button" onClick={() => setThesaurus(current => ({ ...current, visible: false }))}>x</button>
           </div>
           <div className="thesaurus-body">
             {thesaurus.loading ? <div className="spinner-sm" /> : (
               <div className="synonym-list">
-                {thesaurus.synonyms.length > 0 ? thesaurus.synonyms.map(synonym => (
-                  <button
-                    key={synonym}
-                    type="button"
-                    className="synonym-btn"
-                    onClick={() => {
-                      if (editable && thesaurus.selFrom !== null && thesaurus.selTo !== null) {
-                        editor.chain().focus().deleteRange({ from: thesaurus.selFrom, to: thesaurus.selTo }).insertContentAt(thesaurus.selFrom, synonym).run();
-                      }
-                      setThesaurus(current => ({ ...current, visible: false }));
-                    }}
-                  >
-                    {synonym}
-                  </button>
-                )) : <span>No synonyms found for "{thesaurus.word}"</span>}
+                {thesaurus.message ? <span>{thesaurus.message}</span> : (
+                  thesaurus.synonyms.length > 0 ? thesaurus.synonyms.map(synonym => (
+                    <button
+                      key={synonym}
+                      type="button"
+                      className="synonym-btn"
+                      onClick={() => {
+                        if (editable && thesaurus.selFrom !== null && thesaurus.selTo !== null) {
+                          editor.chain().focus().deleteRange({ from: thesaurus.selFrom, to: thesaurus.selTo }).insertContentAt(thesaurus.selFrom, synonym).run();
+                        }
+                        setThesaurus(current => ({ ...current, visible: false }));
+                      }}
+                    >
+                      {synonym}
+                    </button>
+                  )) : <span>No synonyms found for "{thesaurus.word}"</span>
+                )}
               </div>
             )}
           </div>
@@ -477,4 +492,3 @@ const RichEditor = forwardRef(function RichEditor(
 });
 
 export default RichEditor;
-

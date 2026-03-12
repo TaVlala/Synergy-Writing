@@ -13,6 +13,7 @@ const { createContributionsRouter } = require('./routes/contributions');
 const { createExportRouter } = require('./routes/export');
 const { createNotificationsRouter } = require('./routes/notifications');
 const { createRoomsRouter } = require('./routes/rooms');
+const { createThesaurusRouter } = require('./routes/thesaurus');
 const { createSocketHandlers } = require('./socket');
 
 const app = express();
@@ -37,12 +38,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', createAuthRouter({ store, save, signToken, authRequired }));
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/')) return next();
+  if (req.path.startsWith('/auth/') || req.path === '/thesaurus') return next();
   return authRequired(req, res, next);
 });
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/')) return next();
+  if (req.path.startsWith('/auth/') || req.path === '/thesaurus') return next();
   const tokenUserId = req.user?.id;
   const body = req.body || {};
   const query = req.query || {};
@@ -54,6 +55,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use('/api', createRoomsRouter({ store, save, io }));
+app.use('/api', createThesaurusRouter());
 app.use('/api', createContributionsRouter({ store, save, io, sanitizeRichHtml, createNotification }));
 app.use('/api', createNotificationsRouter({ store, save }));
 app.use('/api', createExportRouter({ sanitizeRichHtml }));
