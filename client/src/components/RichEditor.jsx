@@ -35,6 +35,18 @@ const CaseToggle = Extension.create({
 
 const readonlyRegistry = new Set();
 
+const THESAURUS_POPOVER_WIDTH = 240;
+const THESAURUS_POPOVER_HEIGHT = 320;
+
+function clampPopoverPosition(top, left) {
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 720;
+
+  return {
+    top: Math.max(16, Math.min(top, viewportHeight - THESAURUS_POPOVER_HEIGHT - 16)),
+    left: Math.max(16, Math.min(left, viewportWidth - THESAURUS_POPOVER_WIDTH - 16)),
+  };
+}
 function handleGlobalMouseUp() {
   const selection = window.getSelection();
   const hasSelection = selection && !selection.isCollapsed && selection.toString().trim();
@@ -306,8 +318,8 @@ const RichEditor = forwardRef(function RichEditor(
       ? browserSelection.getRangeAt(0).getBoundingClientRect()
       : null;
     const pos = rect
-      ? { top: rect.bottom + 10, left: rect.left }
-      : { top: triggerRect.bottom + 10, left: triggerRect.left };
+      ? clampPopoverPosition(rect.bottom + 10, rect.left)
+      : clampPopoverPosition(triggerRect.bottom + 10, triggerRect.left - 24);
 
     if (!word) {
       setThesaurus({ visible: true, word: '', synonyms: [], loading: false, pos, selFrom: null, selTo: null, message: 'Select a word first.' });
@@ -346,7 +358,7 @@ const RichEditor = forwardRef(function RichEditor(
       }}
     >
       {thesaurus.visible && (
-        <div className="thesaurus-popover" style={{ position: 'fixed', top: thesaurus.pos.top, left: thesaurus.pos.left, zIndex: 1000 }}>
+        <div className="thesaurus-popover" style={{ position: 'fixed', top: thesaurus.pos.top, left: thesaurus.pos.left, zIndex: 10000 }}>
           <div className="thesaurus-header">
             <strong>{thesaurus.word || 'Thesaurus'}</strong>
             <button type="button" onClick={() => setThesaurus(current => ({ ...current, visible: false }))}>x</button>
