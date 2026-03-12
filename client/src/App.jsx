@@ -1,9 +1,10 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Home from './pages/Home';
-import Start from './pages/Start';
-import Room from './pages/Room';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { parseJsonResponse } from './lib/api';
 import Auth from './pages/Auth';
+import Home from './pages/Home';
+import Room from './pages/Room';
+import Start from './pages/Start';
 
 export const UserContext = createContext(null);
 
@@ -13,120 +14,129 @@ export function useUser() {
 
 const LS_TOKEN = 'collab_token';
 const LS_USER = 'collab_user';
+const LS_THEME = 'theme';
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem(LS_USER);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readStoredUser());
   const [authToken, setAuthToken] = useState(() => localStorage.getItem(LS_TOKEN) || '');
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem(LS_THEME) || 'light');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    localStorage.setItem(LS_THEME, theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+  const persistSession = session => {
+    setAuthToken(session.token);
+    setUser(session.user);
+    localStorage.setItem(LS_TOKEN, session.token);
+    localStorage.setItem(LS_USER, JSON.stringify(session.user));
+  };
 
-  const logout = () => {
+  const clearSession = () => {
     setUser(null);
     setAuthToken('');
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_USER);
   };
 
+  const toggleTheme = () => setTheme(current => (current === 'light' ? 'dark' : 'light'));
+
   const apiFetch = async (url, options = {}) => {
     const headers = new Headers(options.headers || {});
-    if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+    if (authToken) {
+      headers.set('Authorization', `Bearer ${authToken}`);
+    }
     return fetch(url, { ...options, headers });
   };
 
   useEffect(() => {
-    const boot = async () => {
-      const token = localStorage.getItem(LS_TOKEN) || '';
-      const storedUser = localStorage.getItem(LS_USER);
-      if (storedUser) {
-        try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-      }
+    let cancelled = false;
 
+    async function boot() {
+      const token = localStorage.getItem(LS_TOKEN) || '';
       if (!token) {
         setLoading(false);
         return;
       }
 
-      setAuthToken(token);
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) throw new Error('not authed');
-        const data = await res.json();
-        if (data?.user) {
-          setUser(data.user);
-          localStorage.setItem(LS_USER, JSON.stringify(data.user));
-        } else {
-          logout();
+        const data = await parseJsonResponse(response);
+        if (!response.ok || !data?.user) {
+          clearSession();
+          return;
+        }
+        if (!cancelled) {
+          persistSession({ token, user: data.user });
         }
       } catch {
-        logout();
+        if (!cancelled) {
+          clearSession();
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    };
+    }
 
     boot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loginWithPassword = async (username, password) => {
-    const res = await fetch('/api/auth/login', {
+    const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password }),
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
       throw new Error(data?.error || 'Login failed');
     }
-
-    setAuthToken(data.token);
-    setUser(data.user);
-    localStorage.setItem(LS_TOKEN, data.token);
-    localStorage.setItem(LS_USER, JSON.stringify(data.user));
+    persistSession(data);
     return data.user;
   };
 
   const registerWithPassword = async ({ username, password, name, color }) => {
-    const res = await fetch('/api/auth/register', {
+    const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, name, color })
+      body: JSON.stringify({ username, password, name, color }),
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
       throw new Error(data?.error || 'Registration failed');
     }
-
-    setAuthToken(data.token);
-    setUser(data.user);
-    localStorage.setItem(LS_TOKEN, data.token);
-    localStorage.setItem(LS_USER, JSON.stringify(data.user));
+    persistSession(data);
     return data.user;
   };
 
   const updateProfile = async ({ name, color }) => {
-    const res = await apiFetch('/api/users/me', {
+    const response = await apiFetch('/api/users/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, color })
+      body: JSON.stringify({ name, color }),
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
       throw new Error(data?.error || 'Profile update failed');
     }
-
     setUser(data);
     localStorage.setItem(LS_USER, JSON.stringify(data));
     return data;
@@ -141,17 +151,19 @@ function App() {
   }
 
   return (
-    <UserContext.Provider value={{
-      user,
-      authToken,
-      apiFetch,
-      loginWithPassword,
-      registerWithPassword,
-      updateProfile,
-      logout,
-      theme,
-      toggleTheme,
-    }}>
+    <UserContext.Provider
+      value={{
+        user,
+        authToken,
+        apiFetch,
+        loginWithPassword,
+        registerWithPassword,
+        updateProfile,
+        logout: clearSession,
+        theme,
+        toggleTheme,
+      }}
+    >
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Home />} />

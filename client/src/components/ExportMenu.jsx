@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Download, FileText, FileDown, FileType2, BookOpen } from 'lucide-react';
 
 function ExportMenu({
@@ -8,8 +8,20 @@ function ExportMenu({
   onExportPdf,
   onExportDocx,
   onExportEpub,
-  menuRef
+  menuRef,
 }) {
+  useEffect(() => {
+    const handleOutsideClick = event => {
+      if (!show) return;
+      if (menuRef?.current && !menuRef.current.contains(event.target)) {
+        onToggle(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [menuRef, onToggle, show]);
+
   return (
     <div className="export-menu-wrap" ref={menuRef}>
       <button

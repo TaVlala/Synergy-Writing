@@ -83,18 +83,31 @@ Mini-game components referenced in the repo include:
 
 Key project files to know:
 
-- `client/src/App.jsx` — app shell, auth context, routing
-- `client/src/pages/Auth.jsx` — login and registration screen
-- `client/src/pages/Start.jsx` — entry/dashboard page after auth
-- `client/src/pages/Room.jsx` — main room state, API usage, socket wiring, room workflow
-- `client/src/components/RoomHeader.jsx` — room header and controls
-- `client/src/components/RichEditor.jsx` — rich text editor behavior
-- `server/index.js` — backend routes, auth, sockets, notifications, export endpoint
-- `server/db.js` — file-based persistence helpers
-- `server/data/db.json` — runtime data store, not meant to be committed as source-of-truth app code
-- `railway.json` — Railway build and start configuration
-- `package.json` — root manifest used by production installs
-- `server/package.json` — backend-local package manifest
+- `client/src/App.jsx` - app shell, auth context, routing
+- `client/src/pages/Auth.jsx` - login and registration screen
+- `client/src/pages/Start.jsx` - entry/dashboard page after auth
+- `client/src/pages/Room.jsx` - main room page orchestration
+- `client/src/hooks/useRoomData.js` - room data loading and membership bootstrap
+- `client/src/hooks/useRoomSocket.js` - socket lifecycle, presence, notifications, game challenge flow
+- `client/src/hooks/useRoomExports.js` - export handlers for txt/pdf/docx/epub
+- `client/src/components/RoomHeader.jsx` - room header and controls
+- `client/src/components/RichEditor.jsx` - rich text editor behavior
+- `client/src/lib/api.js` - shared JSON/fetch helpers
+- `server/index.js` - backend entrypoint and route wiring
+- `server/routes/auth.js` - auth and user profile routes
+- `server/routes/rooms.js` - room, member, and chat routes
+- `server/routes/contributions.js` - contribution, comment, moderation, reorder, and reaction routes
+- `server/routes/notifications.js` - notification routes
+- `server/routes/export.js` - EPUB export route
+- `server/lib/auth.js` - token/auth helpers
+- `server/lib/sanitize.js` - HTML sanitization
+- `server/lib/config.js` - env/config handling
+- `server/socket.js` - socket event wiring
+- `server/db.js` - file-based persistence helpers
+- `server/data/db.json` - runtime data store, not meant to be committed as source-of-truth app code
+- `railway.json` - Railway build and start configuration
+- `package.json` - root manifest used by production installs
+- `server/package.json` - backend-local package manifest
 
 ## Important implementation notes
 
@@ -145,6 +158,33 @@ Important packages now included at the root:
 - `sanitize-html`
 - `uuid`
 
+### 3. Modernization pass
+
+A broader maintainability update was also completed.
+
+Frontend improvements:
+
+- `Room.jsx` was reduced from a monolithic page into a smaller orchestrator backed by dedicated hooks
+- Shared room responsibilities were extracted into `useRoomData`, `useRoomSocket`, and `useRoomExports`
+- Shared JSON request handling was centralized in `client/src/lib/api.js`
+- The room page now uses deferred contribution/notification rendering for smoother updates under heavier state churn
+- The `USER_COLORS` drift in the room page was removed in favor of the shared `APP_COLORS`
+- Export menu outside-click behavior and collaboration auto-scroll were preserved after the refactor
+
+Editor improvements:
+
+- Rich editor link support is now backed by the Tiptap `Link` extension instead of relying on commands without the extension configured
+- Image insertion no longer uses `window.prompt`; it now uses the same in-editor popover style as links
+- Thesaurus requests now use `AbortController` so repeated lookups do not race each other as badly
+- A few legacy imports and rougher UI labels were cleaned up
+
+Backend improvements:
+
+- The single large `server/index.js` file was split into smaller route and helper modules
+- Auth, config, sanitization, notifications, socket wiring, rooms, contributions, exports, and notifications now live in their own files
+- Production config warnings are centralized in `server/lib/config.js`
+- Socket authentication was moved behind dedicated helpers instead of being embedded in the entry file
+
 ## Deployment notes
 
 ### Railway behavior
@@ -185,11 +225,13 @@ These would be good future improvements:
 - Add a dedicated deployment checklist for Railway variables and install expectations
 - Add smoke tests for auth startup and server boot in production-like environments
 - Document room moderation and contribution status flows in more detail
+- Add a real frontend test/build CI step with dependencies installed in the environment
 
 ## Current branch reference
 
 Recent commits related to this recap:
 
-- `833ec91` — Remove JWT warning from auth page
-- `71095af` — Add missing server runtime dependencies
-- `153d5c1` — Add deployment reference notes
+- `833ec91` - Remove JWT warning from auth page
+- `71095af` - Add missing server runtime dependencies
+- `153d5c1` - Add deployment reference notes
+- `8c6ee39` - Expand project recap notes
