@@ -260,7 +260,7 @@ const RichEditor = forwardRef(function RichEditor(
     try {
       const query = new URLSearchParams({ word: clean });
       if (contextStr) query.set('context', contextStr);
-      const response = await fetch(`/api/thesaurus?${query.toString()}`, { signal: controller.signal });
+      const response = await fetch(`/api/thesaurus?${query.toString()}`, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {

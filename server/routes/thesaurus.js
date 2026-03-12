@@ -6,6 +6,10 @@ function createThesaurusRouter() {
   router.get('/thesaurus', async (req, res) => {
     const word = String(req.query.word || '').trim().toLowerCase();
     const context = String(req.query.context || '').trim();
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
 
     if (!word) {
       return res.status(400).json({ error: 'word is required' });
