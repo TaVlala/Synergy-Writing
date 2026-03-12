@@ -185,6 +185,23 @@ Backend improvements:
 - Production config warnings are centralized in `server/lib/config.js`
 - Socket authentication was moved behind dedicated helpers instead of being embedded in the entry file
 
+### 4. Thesaurus stability and visibility fixes
+
+The rich editor thesaurus flow went through several rounds of production hardening.
+
+Work completed:
+
+- fixed broken selection handling in the editor so the `Syn` action could still use the last valid text selection
+- moved thesaurus lookup behind a backend proxy route at `server/routes/thesaurus.js` instead of calling Datamuse directly from the browser
+- disabled caching for thesaurus requests after production returned `304 Not Modified` responses that prevented fresh synonym payloads from being used reliably
+- removed duplicate Tiptap `link` and `underline` extension registration warnings by configuring `StarterKit` to skip those explicit extensions
+- stabilized thesaurus popup visibility by clamping the panel position and raising its layering above surrounding room UI
+- changed thesaurus targeting so multi-word selections resolve to a real word token instead of querying the whole phrase, improving results for cases like a selection ending in `hello`
+
+Important takeaway:
+
+The thesaurus issue was not one single bug. It involved selection persistence, production request path behavior, response caching, duplicate editor extensions, popup visibility, and word-targeting behavior.
+
 ## Deployment notes
 
 ### Railway behavior
@@ -235,3 +252,9 @@ Recent commits related to this recap:
 - `71095af` - Add missing server runtime dependencies
 - `153d5c1` - Add deployment reference notes
 - `8c6ee39` - Expand project recap notes
+- `b050c93` - Fix thesaurus selection handling
+- `4434cf0` - Fix thesaurus lookup in production
+- `2ca7587` - Disable thesaurus response caching
+- `fa111c3` - Remove duplicate Tiptap extensions
+- `86e4168` - Keep thesaurus popover visible
+- `5fbd0d9` - Stabilize thesaurus word targeting
