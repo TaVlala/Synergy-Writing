@@ -47,6 +47,42 @@ function clampPopoverPosition(top, left) {
     left: Math.max(16, Math.min(left, viewportWidth - THESAURUS_POPOVER_WIDTH - 16)),
   };
 }
+
+function resolveThesaurusTarget(selectedText, from, to) {
+  const text = selectedText || '';
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const singleWordMatch = trimmed.match(/^[A-Za-z][A-Za-z'-]*$/);
+  if (singleWordMatch) {
+    const leadingSpaces = text.length - text.trimStart().length;
+    const trailingSpaces = text.length - text.trimEnd().length;
+    return {
+      word: trimmed.toLowerCase(),
+      selFrom: from !== undefined && from !== null ? from + leadingSpaces : null,
+      selTo: to !== undefined && to !== null ? (trailingSpaces > 0 ? to - trailingSpaces : to) : null,
+    };
+  }
+
+  const tokenPattern = /[A-Za-z][A-Za-z'-]*/g;
+  let match;
+  let lastMatch = null;
+  while ((match = tokenPattern.exec(text)) !== null) {
+    lastMatch = match;
+  }
+
+  if (!lastMatch) return null;
+
+  const word = lastMatch[0].toLowerCase();
+  const startOffset = lastMatch.index;
+  const endOffset = startOffset + lastMatch[0].length;
+
+  return {
+    word,
+    selFrom: from !== undefined && from !== null ? from + startOffset : null,
+    selTo: to !== undefined && to !== null ? from + endOffset : null,
+  };
+}
 function handleGlobalMouseUp() {
   const selection = window.getSelection();
   const hasSelection = selection && !selection.isCollapsed && selection.toString().trim();
@@ -313,25 +349,15 @@ const RichEditor = forwardRef(function RichEditor(
     const selectedText = !liveSelection.empty
       ? editor.state.doc.textBetween(liveSelection.from, liveSelection.to, ' ')
       : rememberedSelection?.selectedText || browserSelectedText;
-    const word = selectedText.trim();
-    const rect = browserSelection && !browserSelection.isCollapsed && browserSelection.rangeCount > 0
-      ? browserSelection.getRangeAt(0).getBoundingClientRect()
-      : null;
-    const pos = rect
-      ? clampPopoverPosition(rect.bottom + 10, rect.left)
-      : clampPopoverPosition(triggerRect.bottom + 10, triggerRect.left - 24);
+    const pos = clampPopoverPosition(triggerRect.bottom + 10, triggerRect.right - THESAURUS_POPOVER_WIDTH);
+    const target = resolveThesaurusTarget(selectedText, from, to);
 
-    if (!word) {
+    if (!target?.word) {
       setThesaurus({ visible: true, word: '', synonyms: [], loading: false, pos, selFrom: null, selTo: null, message: 'Select a word first.' });
       return;
     }
 
-    const leadingSpaces = selectedText.length - selectedText.trimStart().length;
-    const trailingSpaces = selectedText.length - selectedText.trimEnd().length;
-    const trimmedFrom = from !== undefined && from !== null ? from + leadingSpaces : null;
-    const trimmedTo = to !== undefined && to !== null ? (trailingSpaces > 0 ? to - trailingSpaces : to) : null;
-
-    fetchSynonyms(word, pos, trimmedFrom, trimmedTo);
+    fetchSynonyms(target.word, pos, target.selFrom, target.selTo);
   };
 
   if (!editor) return null;
