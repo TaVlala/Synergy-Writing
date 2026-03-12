@@ -85,6 +85,7 @@ const RichEditor = forwardRef(function RichEditor(
   const otherCursorsRef = useRef(otherCursors);
   const containerRef = useRef(null);
   const thesaurusAbortRef = useRef(null);
+  const lastTextSelectionRef = useRef(null);
 
   const [linkPopover, setLinkPopover] = useState({ visible: false, value: '' });
   const [imagePopover, setImagePopover] = useState({ visible: false, value: '' });
@@ -168,6 +169,11 @@ const RichEditor = forwardRef(function RichEditor(
       onChangeRef.current?.(current.getHTML(), current.isEmpty);
     },
     onSelectionUpdate: ({ editor: current }) => {
+      const { from, to, empty } = current.state.selection;
+      if (!empty) {
+        const selectedText = current.state.doc.textBetween(from, to, ' ');
+        lastTextSelectionRef.current = { from, to, selectedText };
+      }
       onSelectionUpdateRef.current?.(current.state.selection.head);
     },
   });
@@ -279,12 +285,17 @@ const RichEditor = forwardRef(function RichEditor(
     event.preventDefault();
     event.stopPropagation();
     if (!editor) return;
-    const { from, to, empty } = editor.state.selection;
-    if (empty) return;
 
-    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    const liveSelection = editor.state.selection;
+    const rememberedSelection = lastTextSelectionRef.current;
+    const from = !liveSelection.empty ? liveSelection.from : rememberedSelection?.from;
+    const to = !liveSelection.empty ? liveSelection.to : rememberedSelection?.to;
+    const selectedText = !liveSelection.empty
+      ? editor.state.doc.textBetween(liveSelection.from, liveSelection.to, ' ')
+      : rememberedSelection?.selectedText || '';
     const word = selectedText.trim();
-    if (!word) return;
+
+    if (!from || !to || !word) return;
 
     const leadingSpaces = selectedText.length - selectedText.trimStart().length;
     const trailingSpaces = selectedText.length - selectedText.trimEnd().length;
@@ -294,6 +305,7 @@ const RichEditor = forwardRef(function RichEditor(
     const selection = window.getSelection();
     const rect = selection && !selection.isCollapsed ? selection.getRangeAt(0).getBoundingClientRect() : null;
     const pos = rect ? { top: rect.bottom + 10, left: rect.left } : { top: 100, left: 100 };
+
     fetchSynonyms(word, pos, trimmedFrom, trimmedTo);
   };
 
@@ -465,3 +477,4 @@ const RichEditor = forwardRef(function RichEditor(
 });
 
 export default RichEditor;
+
