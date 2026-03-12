@@ -277,6 +277,7 @@ const RichEditor = forwardRef(function RichEditor(
 
   const handleThesaurusClick = event => {
     event.preventDefault();
+    event.stopPropagation();
     if (!editor) return;
     const { from, to, empty } = editor.state.selection;
     if (empty) return;
@@ -304,12 +305,17 @@ const RichEditor = forwardRef(function RichEditor(
       className={`rich-editor${!editable ? ' rich-editor--readonly' : ''}`}
       style={{ position: 'relative' }}
       onClick={event => {
-        const target = event.target.closest('.inline-comment');
+        const target = event.target.closest?.('.inline-comment');
         if (target) {
           const commentId = target.getAttribute('data-comment-id');
           if (commentId) onCommentClick?.(commentId);
         }
-        if (!event.target.closest('.thesaurus-popover') && !event.target.closest('.bubble-menu-btn')) {
+        if (
+          !event.target.closest?.('.thesaurus-popover') &&
+          !event.target.closest?.('.bubble-menu-btn') &&
+          !event.target.closest?.('.rich-editor-toolbar') &&
+          !event.target.closest?.('.toolbar-link-popover')
+        ) {
           setThesaurus(current => ({ ...current, visible: false }));
         }
       }}
@@ -395,9 +401,9 @@ const RichEditor = forwardRef(function RichEditor(
           <button type="button" className={`toolbar-btn${editor.isActive({ textAlign: 'right' }) ? ' toolbar-btn--active' : ''}`} onMouseDown={event => { event.preventDefault(); editor.chain().focus().setTextAlign('right').run(); }} title="Align right">R</button>
           <button type="button" className={`toolbar-btn${editor.isActive({ textAlign: 'justify' }) ? ' toolbar-btn--active' : ''}`} onMouseDown={event => { event.preventDefault(); editor.chain().focus().setTextAlign('justify').run(); }} title="Justify">J</button>
           <div className="toolbar-divider" />
-          <button type="button" className={`toolbar-btn${editor.isActive('link') ? ' toolbar-btn--active' : ''}`} onMouseDown={event => { event.preventDefault(); setLinkPopover({ visible: true, value: editor.getAttributes('link').href || '' }); }} title="Link">Link</button>
+          <button type="button" className={`toolbar-btn${editor.isActive('link') ? ' toolbar-btn--active' : ''}`} onMouseDown={event => { event.preventDefault(); event.stopPropagation(); setLinkPopover({ visible: true, value: editor.getAttributes('link').href || '' }); }} title="Link">Link</button>
           {linkPopover.visible && (
-            <div className="toolbar-link-popover">
+            <div className="toolbar-link-popover" onClick={event => event.stopPropagation()}>
               <input className="input input--sm" type="url" placeholder="https://..." value={linkPopover.value} autoFocus onChange={event => setLinkPopover(current => ({ ...current, value: event.target.value }))} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); applyLink(); }
                 if (event.key === 'Escape') closePopover(setLinkPopover);
@@ -406,9 +412,9 @@ const RichEditor = forwardRef(function RichEditor(
               <button type="button" className="btn btn-sm btn-ghost" onMouseDown={event => { event.preventDefault(); closePopover(setLinkPopover); }}>x</button>
             </div>
           )}
-          <button type="button" className="toolbar-btn" onMouseDown={event => { event.preventDefault(); setImagePopover({ visible: true, value: '' }); }} title="Image">Image</button>
+          <button type="button" className="toolbar-btn" onMouseDown={event => { event.preventDefault(); event.stopPropagation(); setImagePopover({ visible: true, value: '' }); }} title="Image">Image</button>
           {imagePopover.visible && (
-            <div className="toolbar-link-popover">
+            <div className="toolbar-link-popover" onClick={event => event.stopPropagation()}>
               <input className="input input--sm" type="url" placeholder="https://image-url" value={imagePopover.value} autoFocus onChange={event => setImagePopover(current => ({ ...current, value: event.target.value }))} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); applyImage(); }
                 if (event.key === 'Escape') closePopover(setImagePopover);

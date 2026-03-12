@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useRef, useState } from 'react';
-import { Lock, Swords } from 'lucide-react';
+import { ChevronDown, Lock, SquarePen, Swords } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useUser } from '../App';
 import ChatView from '../components/ChatView';
@@ -45,6 +45,7 @@ function Room() {
   const [showHangman, setShowHangman] = useState(false);
   const [showWordLadder, setShowWordLadder] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState(null);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const editorRef = useRef(null);
   const exportMenuRef = useRef(null);
@@ -403,33 +404,62 @@ function Room() {
           </footer>
         ) : (
           <footer className="room-footer">
-            <form className="contribution-form" onSubmit={handleSubmit}>
-              <div className="form-nametag" style={{ '--user-color': user.color || APP_COLORS[5] }}>
-                <span className="form-nametag-dot" />
-                <span className="form-nametag-name">{user.name}</span>
-              </div>
-              <RichEditor
-                ref={editorRef}
-                placeholder="Write something..."
-                otherCursors={otherCursors}
-                currentUserName={user?.name}
-                showCommentBubble={false}
-                onChange={(html, isEmpty) => {
-                  setEditorHTML(html);
-                  setEditorEmpty(isEmpty);
-                  emitTyping();
-                }}
-                onSelectionUpdate={emitCursorUpdate}
-                onSubmit={handleSubmit}
-              />
-              <div className="form-actions">
-                <span className="form-hint">Ctrl + Enter to post</span>
-                {postError && <span className="form-error">{postError}</span>}
-                <button className="btn btn-primary" type="submit" disabled={submitting || editorEmpty}>
-                  {submitting ? 'Posting...' : 'Post'}
+            {composerExpanded ? (
+              <form className="contribution-form" onSubmit={handleSubmit}>
+                <div className="composer-header">
+                  <div className="composer-title">
+                    <SquarePen size={15} />
+                    <span>New contribution</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="composer-toggle"
+                    onClick={() => setComposerExpanded(false)}
+                    title="Collapse composer"
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                </div>
+                <RichEditor
+                  ref={editorRef}
+                  placeholder="Write something..."
+                  otherCursors={otherCursors}
+                  currentUserName={user?.name}
+                  showCommentBubble={false}
+                  onChange={(html, isEmpty) => {
+                    setEditorHTML(html);
+                    setEditorEmpty(isEmpty);
+                    emitTyping();
+                  }}
+                  onSelectionUpdate={emitCursorUpdate}
+                  onSubmit={handleSubmit}
+                />
+                <div className="form-actions">
+                  <span className="form-hint">Ctrl + Enter to post</span>
+                  {postError && <span className="form-error">{postError}</span>}
+                  <button className="btn btn-primary" type="submit" disabled={submitting || editorEmpty}>
+                    {submitting ? 'Posting...' : 'Post'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="composer-collapsed">
+                <div className="composer-collapsed-copy">
+                  <span className="composer-collapsed-title">New contribution</span>
+                  <span className="composer-collapsed-sub">Expand the editor when you're ready to write.</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary composer-open-btn"
+                  onClick={() => {
+                    setComposerExpanded(true);
+                    setTimeout(() => editorRef.current?.focus(), 0);
+                  }}
+                >
+                  <SquarePen size={15} /> Write
                 </button>
               </div>
-            </form>
+            )}
           </footer>
         )
       )}
@@ -521,3 +551,5 @@ function Room() {
 }
 
 export default Room;
+
+
