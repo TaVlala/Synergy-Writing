@@ -146,9 +146,6 @@ function Auth() {
 
         {error && <p className="error-text">{error}</p>}
 
-        <p className="muted" style={{ marginTop: 14, textAlign: 'center' }}>
-          In production, set JWT_SECRET.
-        </p>
       </div>
     </div>
   );
